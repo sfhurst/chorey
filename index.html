@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daily Chores</title>
+    <style>
+      :root {
+        --bg-color: #121212;
+        --card-bg: #1e1e1e;
+        --text-main: #e0e0e0;
+        --text-muted: #a0a0a0;
+        --accent: #4caf50;
+        --border-color: #333333;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: 16px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 480px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      header {
+        padding: 8px 4px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      h1 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+
+      .date-display {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      .chore-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        list-style: none;
+      }
+
+      .chore-item {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .chore-checkbox {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 22px;
+        height: 22px;
+        border: 2px solid var(--text-muted);
+        border-radius: 5px;
+        outline: none;
+        background-color: transparent;
+        display: grid;
+        place-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.15s ease;
+      }
+
+      .chore-checkbox::before {
+        content: "";
+        width: 11px;
+        height: 11px;
+        transform: scale(0);
+        transition: 100ms transform ease-in-out;
+        background-color: white;
+        clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+      }
+
+      .chore-checkbox:checked {
+        background-color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .chore-checkbox:checked::before {
+        transform: scale(1);
+      }
+
+      .chore-title {
+        font-size: 1.05rem;
+        font-weight: 400;
+        line-height: 1.3;
+        transition:
+          color 0.15s ease,
+          text-decoration 0.15s ease;
+      }
+
+      .chore-checkbox:checked ~ .chore-title {
+        color: var(--text-muted);
+        text-decoration: line-through;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-muted);
+        font-style: italic;
+        font-size: 0.95rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1 id="day-heading">Today's Chores</h1>
+        <div class="date-display" id="date-subheading"></div>
+      </header>
+
+      <main>
+        <ul id="chore-container" class="chore-list"></ul>
+      </main>
+    </div>
+
+    <script>
+      // ==========================================
+      // 1. YOUR CUSTOM CHORE SCHEDULE
+      // ==========================================
+      const choreSchedule = {
+        // Evaluated based on the active day of the week
+        dailyRotation: {
+          Monday: [
+            "Kitchen: Wipe counters",
+            "Kitchen: Wash dishes",
+            "Kitchen: Rinse sink",
+            "Bathrooms: Wipe counters",
+            "Bathrooms: Rinse sinks",
+            "Bathrooms: Wipe toilet seats",
+            "Basement: Empty dehumidifier",
+            "Basement: Clear steps",
+            "Basement: Laundry as needed",
+          ],
+          Tuesday: ["Kitchen: Wipe counters", "Kitchen: Wash dishes", "Kitchen: Rinse sink", "Basement: Empty dehumidifier", "Basement: Clear steps"],
+          Wednesday: [
+            "Kitchen: Wipe counters",
+            "Kitchen: Wash dishes",
+            "Kitchen: Rinse sink",
+            "Bathrooms: Wipe counters",
+            "Bathrooms: Rinse sinks",
+            "Bathrooms: Wipe toilet seats",
+            "Basement: Empty dehumidifier",
+            "Basement: Clear steps",
+            "Basement: Laundry as needed",
+          ],
+          Thursday: ["Kitchen: Wipe counters", "Kitchen: Wash dishes", "Kitchen: Rinse sink", "Basement: Empty dehumidifier", "Basement: Clear steps"],
+          Friday: [
+            "Kitchen: Wipe counters",
+            "Kitchen: Wash dishes",
+            "Kitchen: Rinse sink",
+            "Bathrooms: Wipe counters",
+            "Bathrooms: Rinse sinks",
+            "Bathrooms: Wipe toilet seats",
+            "Basement: Empty dehumidifier",
+            "Basement: Clear steps",
+            "Basement: Laundry as needed",
+          ],
+          // Sat/Sun don't have specified generic daily blocks in your breakdown, adding defaults if desired:
+          Saturday: ["Basement: Empty dehumidifier"],
+          Sunday: ["Basement: Empty dehumidifier"],
+        },
+
+        // Fixed weekly calendar schedule
+        weekly: {
+          Monday: ["Kitchen: Clean refrigerator", "Kitchen: Wipe microwave"],
+          Tuesday: ["Bathrooms: Clean toilets", "Bathrooms: Wipe mirrors", "Kitchen: Take out garbage and recycling"],
+          Wednesday: ["Whole House: Declutter", "Whole House: Dust", "Whole House: Vacuum"],
+          Thursday: ["Bedrooms: Wash bed sheets", "Bedrooms: Make the bed with fresh sheets", "Bedrooms: Bedroom declutter", "Bedrooms: Fold and put away laundry"],
+          Friday: ["Weekly Reset: Quick pickup", "Weekly Reset: Catch up on anything missed", "Weekly Reset: Enjoy a clean house!"],
+          Saturday: ["Kitchen: Vacuum and mop floor"],
+          Sunday: ["Finish laundry", "Prepare for the work week", "Catch anything that needs attention"],
+        },
+
+        // Monthly rotating list (mapped to Saturday by default based on your prompt)
+        monthlyRotation: {
+          dayOfWeek: "Saturday",
+          weeks: {
+            1: ["Monthly Week 1: Clean showers"],
+            2: ["Monthly Week 2: Sweep & declutter garage"],
+            3: ["Monthly Week 3: Declutter basement"],
+            4: ["Monthly Week 4: Organize pantry, drawers, and cabinets"],
+            5: ["Monthly Week 5: Catch up or rest block"], // Edge case variant
+          },
+        },
+
+        // Yearly target tasks
+        yearly: {
+          January: ["Yearly: Clean washing machine pump"],
+          April: ["Yearly: Change water filters"],
+          October: ["Yearly: Clean oven"],
+        },
+
+        // Miscellaneous bucket for easy future sorting:
+        misc: ["Mop bathroom floor", "Clean glass doors", "Clean windows"],
+      };
+
+      // ==========================================
+      // 2. LOGIC ENGINE
+      // ==========================================
+      const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const monthsOfYear = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+      function getWeekOfMonth(date) {
+        return Math.ceil(date.getDate() / 7);
+      }
+
+      function generateTodaysList() {
+        const today = new Date();
+        const currentDayName = daysOfWeek[today.getDay()];
+        const currentMonthName = monthsOfYear[today.getMonth()];
+        const currentDayOfMonth = today.getDate();
+
+        const todaysChores = [];
+
+        // 1. Dynamic Daily Rotation Chores
+        if (choreSchedule.dailyRotation && choreSchedule.dailyRotation[currentDayName]) {
+          choreSchedule.dailyRotation[currentDayName].forEach(task => todaysChores.push({ task, type: "Daily" }));
+        }
+
+        // 2. Weekly Specific Chores
+        if (choreSchedule.weekly && choreSchedule.weekly[currentDayName]) {
+          choreSchedule.weekly[currentDayName].forEach(task => todaysChores.push({ task, type: "Weekly" }));
+        }
+
+        // 3. Monthly Rotating Chores (Triggers on its designated day, e.g., Saturday)
+        if (choreSchedule.monthlyRotation && currentDayName === choreSchedule.monthlyRotation.dayOfWeek) {
+          const weekNum = getWeekOfMonth(today);
+          const rotationTasks = choreSchedule.monthlyRotation.weeks[weekNum];
+          if (rotationTasks) {
+            rotationTasks.forEach(task => todaysChores.push({ task, type: "Monthly" }));
+          }
+        }
+
+        // 4. Yearly Chores (Persists all days of that specific month)
+        if (choreSchedule.yearly && choreSchedule.yearly[currentMonthName]) {
+          choreSchedule.yearly[currentMonthName].forEach(task => todaysChores.push({ task, type: "Yearly" }));
+        }
+
+        return {
+          dateKey: `${today.getFullYear()}-${today.getMonth()}-${currentDayOfMonth}`,
+          displayDate: today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }),
+          chores: todaysChores,
+        };
+      }
+
+      // ==========================================
+      // 3. STORAGE & INTERFACE INTERACTION
+      // ==========================================
+      function initApp() {
+        const data = generateTodaysList();
+        document.getElementById("date-subheading").textContent = data.displayDate;
+
+        const cachedDate = localStorage.getItem("chore_date_key");
+        if (cachedDate !== data.dateKey) {
+          localStorage.removeItem("completed_chores");
+          localStorage.setItem("chore_date_key", data.dateKey);
+        }
+
+        let completedChores = JSON.parse(localStorage.getItem("completed_chores")) || [];
+        const container = document.getElementById("chore-container");
+        container.innerHTML = "";
+
+        if (data.chores.length === 0) {
+          container.innerHTML = `<li class="empty-state">No chores scheduled for today!</li>`;
+          return;
+        }
+
+        data.chores.forEach(chore => {
+          const choreId = `${chore.type}_${chore.task.replace(/\s+/g, "_")}`;
+          const isChecked = completedChores.includes(choreId);
+
+          const li = document.createElement("li");
+          li.className = "chore-item";
+
+          li.addEventListener("click", e => {
+            if (e.target.tagName === "INPUT") return;
+            const cb = li.querySelector("input");
+            cb.checked = !cb.checked;
+            handleToggle(choreId, cb.checked);
+          });
+
+          li.innerHTML = `
+                    <input type="checkbox" class="chore-checkbox" id="${choreId}" ${isChecked ? "checked" : ""}>
+                    <span class="chore-title">${chore.task}</span>
+                `;
+
+          li.querySelector("input").addEventListener("change", e => {
+            handleToggle(choreId, e.target.checked);
+          });
+
+          container.appendChild(li);
+        });
+      }
+
+      function handleToggle(choreId, isChecked) {
+        let completedChores = JSON.parse(localStorage.getItem("completed_chores")) || [];
+        if (isChecked) {
+          if (!completedChores.includes(choreId)) completedChores.push(choreId);
+        } else {
+          completedChores = completedChores.filter(id => id !== choreId);
+        }
+        localStorage.setItem("completed_chores", JSON.stringify(completedChores));
+      }
+
+      initApp();
+    </script>
+  </body>
+</html>
