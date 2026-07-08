@@ -12,6 +12,13 @@
         --text-muted: #a0a0a0;
         --accent: #4caf50;
         --border-color: #333333;
+
+        /* Category Accent Borders */
+        --cat-kitchen: #3a9ad9;
+        --cat-bathroom: #2bbbb0;
+        --cat-basement: #8a63d2;
+        --cat-bedrooms: #e67e22;
+        --cat-default: #4f5d65;
       }
 
       * {
@@ -35,6 +42,7 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
+        position: relative;
       }
 
       header {
@@ -63,14 +71,28 @@
       .chore-item {
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
+        border-left: 4px solid var(--cat-default);
         border-radius: 8px;
         padding: 14px 16px;
         display: flex;
         align-items: center;
         gap: 14px;
         cursor: pointer;
-        transition: background-color 0.15s ease;
+        transition: all 0.2s ease;
         -webkit-tap-highlight-color: transparent;
+      }
+
+      .chore-item[data-cat="kitchen"] {
+        border-left-color: var(--cat-kitchen);
+      }
+      .chore-item[data-cat="bathroom"] {
+        border-left-color: var(--cat-bathroom);
+      }
+      .chore-item[data-cat="basement"] {
+        border-left-color: var(--cat-basement);
+      }
+      .chore-item[data-cat="bedrooms"] {
+        border-left-color: var(--cat-bedrooms);
       }
 
       .chore-checkbox {
@@ -117,9 +139,69 @@
           text-decoration 0.15s ease;
       }
 
-      .chore-checkbox:checked ~ .chore-title {
+      .chore-item.completed-row {
+        opacity: 0.4;
+        border-left-color: var(--border-color);
+      }
+
+      .chore-item.completed-row .chore-title {
         color: var(--text-muted);
         text-decoration: line-through;
+      }
+
+      /* 5-Second Timed Overlay Banner */
+      .congrats-overlay {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 32px);
+        max-width: 448px;
+        background-color: #1b4322;
+        border: 1px solid var(--accent);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        animation: slideInDown 0.4s ease forwards;
+      }
+
+      .congrats-overlay.fade-out {
+        animation: fadeOutUp 0.4s ease forwards;
+      }
+
+      .congrats-overlay h2 {
+        font-size: 1.25rem;
+        color: #81c784;
+        margin-bottom: 4px;
+      }
+
+      .congrats-overlay p {
+        color: #e0e0e0;
+        font-size: 0.95rem;
+      }
+
+      @keyframes slideInDown {
+        from {
+          transform: translate(-50%, -100px);
+          opacity: 0;
+        }
+        to {
+          transform: translate(-50%, 0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes fadeOutUp {
+        from {
+          transform: translate(-50%, 0);
+          opacity: 1;
+        }
+        to {
+          transform: translate(-50%, -100px);
+          opacity: 0;
+        }
       }
 
       .empty-state {
@@ -138,70 +220,103 @@
         <div class="date-display" id="date-subheading"></div>
       </header>
 
-      <main>
+      <main id="app-viewport">
         <ul id="chore-container" class="chore-list"></ul>
       </main>
     </div>
 
     <script>
       // ==========================================
-      // 1. YOUR CUSTOM CHORE SCHEDULE
+      // 1. MASTER CHORE SCHEDULE CONFIGURATION
       // ==========================================
       const choreSchedule = {
-        // Evaluated based on the active day of the week
-        dailyRotation: {
+        days: {
           Monday: [
-            "Kitchen: Wipe counters",
+            "Kitchen: Wipe microwave",
             "Kitchen: Wash dishes",
             "Kitchen: Rinse sink",
-            "Bathrooms: Wipe counters",
-            "Bathrooms: Rinse sinks",
-            "Bathrooms: Wipe toilet seats",
+            "Kitchen: Wipe counters and stovetop",
+            "Bathroom: Wipe counters",
+            "Bathroom: Rinse sink",
+            "Bathroom: Wipe toilet seats",
             "Basement: Empty dehumidifier",
             "Basement: Clear steps",
-            "Basement: Laundry as needed",
+            "Basement: Cycle laundry",
           ],
-          Tuesday: ["Kitchen: Wipe counters", "Kitchen: Wash dishes", "Kitchen: Rinse sink", "Basement: Empty dehumidifier", "Basement: Clear steps"],
+          Tuesday: [
+            "Kitchen: Wash dishes",
+            "Kitchen: Rinse sink",
+            "Kitchen: Wipe counters and stovetop",
+            "Kitchen: Take out garbage",
+            "Bathroom: Wipe mirrors",
+            "Bathroom: Wipe counters",
+            "Bathroom: Rinse sink",
+            "Bathroom: Clean toilets",
+            "Basement: Empty dehumidifier",
+            "Basement: Clear steps",
+            "Basement: Cycle laundry",
+          ],
           Wednesday: [
-            "Kitchen: Wipe counters",
             "Kitchen: Wash dishes",
             "Kitchen: Rinse sink",
-            "Bathrooms: Wipe counters",
-            "Bathrooms: Rinse sinks",
-            "Bathrooms: Wipe toilet seats",
+            "Kitchen: Wipe counters and stovetop",
+            "Kitchen: Take out recycling",
+            "Kitchen: Vacuum floor",
+            "Bathroom: Wipe mirrors",
+            "Bathroom: Wipe counters",
+            "Bathroom: Rinse sink",
+            "Bathroom: Clean toilets",
             "Basement: Empty dehumidifier",
             "Basement: Clear steps",
-            "Basement: Laundry as needed",
+            "Basement: Cycle laundry",
           ],
-          Thursday: ["Kitchen: Wipe counters", "Kitchen: Wash dishes", "Kitchen: Rinse sink", "Basement: Empty dehumidifier", "Basement: Clear steps"],
+          Thursday: [
+            "Kitchen: Wash dishes",
+            "Kitchen: Rinse sink",
+            "Kitchen: Wipe counters and stovetop",
+            "Bathroom: Wipe counters",
+            "Bathroom: Rinse sink",
+            "Bathroom: Wipe toilet seats",
+            "Basement: Empty dehumidifier",
+            "Basement: Clear steps",
+            "Basement: Cycle laundry",
+            "Bedrooms: Change the bed sheets",
+            "Bedrooms: Wash bed sheets",
+            "Bedrooms: Bedroom declutter",
+          ],
           Friday: [
-            "Kitchen: Wipe counters",
             "Kitchen: Wash dishes",
             "Kitchen: Rinse sink",
-            "Bathrooms: Wipe counters",
-            "Bathrooms: Rinse sinks",
-            "Bathrooms: Wipe toilet seats",
+            "Kitchen: Wipe counters and stovetop",
+            "Bathroom: Wipe counters",
+            "Bathroom: Rinse sink",
+            "Bathroom: Wipe toilet seats",
             "Basement: Empty dehumidifier",
             "Basement: Clear steps",
-            "Basement: Laundry as needed",
+            "Basement: Cycle laundry",
+            "Whole House: Clean glass doors",
           ],
-          // Sat/Sun don't have specified generic daily blocks in your breakdown, adding defaults if desired:
-          Saturday: ["Basement: Empty dehumidifier"],
-          Sunday: ["Basement: Empty dehumidifier"],
-        },
-
-        // Fixed weekly calendar schedule
-        weekly: {
-          Monday: ["Kitchen: Clean refrigerator", "Kitchen: Wipe microwave"],
-          Tuesday: ["Bathrooms: Clean toilets", "Bathrooms: Wipe mirrors", "Kitchen: Take out garbage"],
-          Wednesday: ["Whole House: Declutter", "Whole House: Dust", "Whole House: Vacuum", "Kitchen: Take out recycling"],
-          Thursday: ["Bedrooms: Wash bed sheets", "Bedrooms: Make the bed with fresh sheets", "Bedrooms: Bedroom declutter", "Bedrooms: Fold and put away laundry"],
-          Friday: ["Weekly Reset: Quick pickup", "Weekly Reset: Catch up on anything missed", "Weekly Reset: Enjoy a clean house!"],
-          Saturday: ["Kitchen: Vacuum and mop floor"],
+          Saturday: [
+            "Kitchen: Clean refrigerator",
+            "Kitchen: Wash dishes",
+            "Kitchen: Rinse sink",
+            "Kitchen: Wipe counters and stovetop",
+            "Kitchen: Mop floor",
+            "Kitchen: Meal plan and order groceries",
+            "Bathroom: Wipe counters",
+            "Bathroom: Rinse sink",
+            "Bathroom: Clean toilets",
+            "Bathroom: Mop floors",
+            "Basement: Empty dehumidifier",
+            "Basement: Clear steps",
+            "Basement: Cycle laundry",
+            "Whole House: Declutter",
+            "Whole House: Dust",
+            "Whole House: Vacuum",
+          ],
           Sunday: ["Finish laundry", "Prepare for the work week", "Catch anything that needs attention"],
         },
 
-        // Monthly rotating list (mapped to Saturday by default based on your prompt)
         monthlyRotation: {
           dayOfWeek: "Saturday",
           weeks: {
@@ -209,19 +324,15 @@
             2: ["Monthly Week 2: Sweep & declutter garage"],
             3: ["Monthly Week 3: Declutter basement"],
             4: ["Monthly Week 4: Organize pantry, drawers, and cabinets"],
-            5: ["Monthly Week 5: Catch up or rest block"], // Edge case variant
+            5: ["Monthly Week 5: Clean windows"],
           },
         },
 
-        // Yearly target tasks
         yearly: {
           January: ["Yearly: Clean washing machine pump"],
           April: ["Yearly: Change water filters"],
           October: ["Yearly: Clean oven"],
         },
-
-        // Miscellaneous bucket for easy future sorting:
-        misc: ["Mop bathroom floor", "Clean glass doors", "Clean windows"],
       };
 
       // ==========================================
@@ -242,17 +353,10 @@
 
         const todaysChores = [];
 
-        // 1. Dynamic Daily Rotation Chores
-        if (choreSchedule.dailyRotation && choreSchedule.dailyRotation[currentDayName]) {
-          choreSchedule.dailyRotation[currentDayName].forEach(task => todaysChores.push({ task, type: "Daily" }));
+        if (choreSchedule.days && choreSchedule.days[currentDayName]) {
+          choreSchedule.days[currentDayName].forEach(task => todaysChores.push({ task, type: "Chore" }));
         }
 
-        // 2. Weekly Specific Chores
-        if (choreSchedule.weekly && choreSchedule.weekly[currentDayName]) {
-          choreSchedule.weekly[currentDayName].forEach(task => todaysChores.push({ task, type: "Weekly" }));
-        }
-
-        // 3. Monthly Rotating Chores (Triggers on its designated day, e.g., Saturday)
         if (choreSchedule.monthlyRotation && currentDayName === choreSchedule.monthlyRotation.dayOfWeek) {
           const weekNum = getWeekOfMonth(today);
           const rotationTasks = choreSchedule.monthlyRotation.weeks[weekNum];
@@ -261,8 +365,7 @@
           }
         }
 
-        // 4. Yearly Chores (Persists all days of that specific month)
-        if (choreSchedule.yearly && choreSchedule.yearly[currentMonthName]) {
+        if (choreSchedule.yearly && choreSchedule.yearly[currentMonthName] && (currentDayName === "Saturday" || currentDayName === "Sunday")) {
           choreSchedule.yearly[currentMonthName].forEach(task => todaysChores.push({ task, type: "Yearly" }));
         }
 
@@ -273,63 +376,121 @@
         };
       }
 
+      function getCategorySlug(taskText) {
+        const lower = taskText.toLowerCase();
+        if (lower.startsWith("kitchen:")) return "kitchen";
+        if (lower.startsWith("bathroom:")) return "bathroom";
+        if (lower.startsWith("basement:")) return "basement";
+        if (lower.startsWith("bedrooms:")) return "bedrooms";
+        return "default";
+      }
+
       // ==========================================
-      // 3. STORAGE & INTERFACE INTERACTION
+      // 3. STORAGE & RENDER ACTIONS
       // ==========================================
+      let activeDayData = null;
+      let congratsTriggeredForToday = false;
+
       function initApp() {
-        const data = generateTodaysList();
-        document.getElementById("date-subheading").textContent = data.displayDate;
+        activeDayData = generateTodaysList();
+        document.getElementById("date-subheading").textContent = activeDayData.displayDate;
 
         const cachedDate = localStorage.getItem("chore_date_key");
-        if (cachedDate !== data.dateKey) {
+        if (cachedDate !== activeDayData.dateKey) {
           localStorage.removeItem("completed_chores");
-          localStorage.setItem("chore_date_key", data.dateKey);
+          localStorage.setItem("chore_date_key", activeDayData.dateKey);
+          localStorage.removeItem("congrats_triggered");
         }
 
-        let completedChores = JSON.parse(localStorage.getItem("completed_chores")) || [];
-        const container = document.getElementById("chore-container");
-        container.innerHTML = "";
+        congratsTriggeredForToday = localStorage.getItem("congrats_triggered") === "true";
+        renderView();
+      }
 
-        if (data.chores.length === 0) {
-          container.innerHTML = `<li class="empty-state">No chores scheduled for today!</li>`;
+      function renderView() {
+        const viewport = document.getElementById("app-viewport");
+
+        if (activeDayData.chores.length === 0) {
+          viewport.innerHTML = `<ul class="chore-list"><li class="empty-state">All clear! No chores scheduled today.</li></ul>`;
           return;
         }
 
-        data.chores.forEach(chore => {
-          const choreId = `${chore.type}_${chore.task.replace(/\s+/g, "_")}`;
-          const isChecked = completedChores.includes(choreId);
+        let completedIds = JSON.parse(localStorage.getItem("completed_chores")) || [];
 
-          const li = document.createElement("li");
-          li.className = "chore-item";
+        const processedList = activeDayData.chores.map(chore => {
+          const id = `${chore.type}_${chore.task.replace(/\s+/g, "_")}`;
+          return {
+            ...chore,
+            id: id,
+            isDone: completedIds.includes(id),
+          };
+        });
 
-          li.addEventListener("click", e => {
-            if (e.target.tagName === "INPUT") return;
-            const cb = li.querySelector("input");
-            cb.checked = !cb.checked;
-            handleToggle(choreId, cb.checked);
-          });
+        // Fire temporary congrats popup if list just hit completion and hasn't run yet
+        const totalDone = processedList.filter(item => item.isDone).length;
+        if (totalDone === processedList.length && !congratsTriggeredForToday) {
+          triggerTemporaryCongrats();
+        }
 
-          li.innerHTML = `
-                    <input type="checkbox" class="chore-checkbox" id="${choreId}" ${isChecked ? "checked" : ""}>
-                    <span class="chore-title">${chore.task}</span>
+        processedList.sort((a, b) => a.isDone - b.isDone);
+
+        let listHTML = `<ul id="chore-container" class="chore-list">`;
+        processedList.forEach(item => {
+          const categorySlug = getCategorySlug(item.task);
+          listHTML += `
+                    <li class="chore-item ${item.isDone ? "completed-row" : ""}" data-id="${item.id}" data-cat="${categorySlug}">
+                        <input type="checkbox" class="chore-checkbox" ${item.isDone ? "checked" : ""} tabindex="-1">
+                        <span class="chore-title">${item.task}</span>
+                    </li>
                 `;
+        });
+        listHTML += `</ul>`;
+        viewport.innerHTML = listHTML;
 
-          li.querySelector("input").addEventListener("change", e => {
-            handleToggle(choreId, e.target.checked);
+        document.querySelectorAll(".chore-item").forEach(row => {
+          row.addEventListener("click", e => {
+            if (e.target.tagName === "INPUT") return;
+            const checkbox = row.querySelector("input");
+            checkbox.checked = !checkbox.checked;
+            toggleChoreState(row.dataset.id, checkbox.checked);
           });
 
-          container.appendChild(li);
+          row.querySelector("input").addEventListener("change", e => {
+            toggleChoreState(row.dataset.id, e.target.checked);
+          });
         });
       }
 
-      function handleToggle(choreId, isChecked) {
-        let completedChores = JSON.parse(localStorage.getItem("completed_chores")) || [];
+      function triggerTemporaryCongrats() {
+        congratsTriggeredForToday = true;
+        localStorage.setItem("congrats_triggered", "true");
+
+        const overlay = document.createElement("div");
+        overlay.className = "congrats-overlay";
+        overlay.innerHTML = `
+                <h2>All Chores Done! 🎉</h2>
+                <p>Everything is checked off. Enjoy your day!</p>
+            `;
+        document.body.appendChild(overlay);
+
+        // Wait 4.6s to begin smooth exit animation, complete clear at 5s flat
+        setTimeout(() => {
+          overlay.classList.add("fade-out");
+          setTimeout(() => overlay.remove(), 400);
+        }, 4600);
+      }
+
+      function toggleChoreState(choreId, isChecked) {
+        let completedIds = JSON.parse(localStorage.getItem("completed_chores")) || [];
         if (isChecked) {
-          if (!completedChores.includes(choreId)) completedChores.push(choreId);
+          if (!completedIds.includes(choreId)) completedIds.push(choreId);
         } else {
-          completedChores = completedChores.filter(id => id !== choreId);
+          completedIds = completedIds.filter(id => id !== choreId);
+          // Allow re-triggering popup later if an item is unchecked and re-checked
+          congratsTriggeredForToday = false;
+          localStorage.removeItem("congrats_triggered");
         }
-        localStorage.setItem("completed_chores", JSON.stringify(completedChores));
+        localStorage.setItem("completed_chores", JSON.stringify(completedIds));
+        renderView();
       }
 
       initApp();
