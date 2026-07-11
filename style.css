@@ -5,12 +5,19 @@
   --text-muted: #a0a0a0;
   --accent: #4caf50;
   --border-color: #333333;
-  /* Category Accent Borders */
+
+  /* Category & Member Accent Themes */
   --cat-kitchen: #3a9ad9;
-  --cat-bathroom: #2bbbb0;
   --cat-basement: #8a63d2;
-  --cat-bedrooms: #e67e22;
+  --cat-weekend: #d4af37;
+  --cat-yearly: #cc3333;
   --cat-default: #4f5d65;
+
+  /* Spatial Themes */
+  --cat-main-baths: #2bbbb0;
+  --cat-upstairs-bath: #66cdaa;
+  --cat-master-bedroom: #e67e22;
+  --cat-upstairs-bedrooms: #ffaa66;
 }
 * {
   box-sizing: border-box;
@@ -46,11 +53,40 @@ h1 {
   color: var(--text-muted);
   font-size: 0.85rem;
 }
+
+/* Section Header Styling */
+.section-header {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 12px 4px 4px 4px;
+  margin-top: 4px;
+  border-bottom: 1px dashed var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-header[data-user-theme="Steve"] {
+  color: var(--cat-kitchen);
+}
+.section-header[data-user-theme="Sandy"] {
+  color: var(--cat-basement);
+}
+.section-header[data-user-theme="Jace"] {
+  color: var(--cat-upstairs-bedrooms);
+}
+.section-header[data-user-theme="Phin"] {
+  color: var(--cat-upstairs-bath);
+}
+
 .chore-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   list-style: none;
+  margin-bottom: 12px;
 }
 .chore-item {
   background-color: var(--card-bg);
@@ -68,15 +104,34 @@ h1 {
 .chore-item[data-cat="kitchen"] {
   border-left-color: var(--cat-kitchen);
 }
-.chore-item[data-cat="bathroom"] {
-  border-left-color: var(--cat-bathroom);
-}
 .chore-item[data-cat="basement"] {
   border-left-color: var(--cat-basement);
 }
-.chore-item[data-cat="bedrooms"] {
-  border-left-color: var(--cat-bedrooms);
+.chore-item[data-cat="weekend"] {
+  border-left-color: var(--cat-weekend);
 }
+.chore-item[data-cat="yearly"] {
+  border-left-color: var(--cat-yearly);
+}
+.chore-item[data-cat="main-bathrooms"] {
+  border-left-color: var(--cat-main-baths);
+}
+.chore-item[data-cat="upstairs-bathroom"] {
+  border-left-color: var(--cat-upstairs-bath);
+}
+.chore-item[data-cat="master-bedroom"] {
+  border-left-color: var(--cat-master-bedroom);
+}
+.chore-item[data-cat="upstairs-bedrooms"] {
+  border-left-color: var(--cat-upstairs-bedrooms);
+}
+
+.chore-text-target {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
 .chore-checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -124,7 +179,37 @@ h1 {
   color: var(--text-muted);
   text-decoration: line-through;
 }
-/* 5-Second Timed Overlay Banner */
+
+.assignment-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(18, 18, 18, 0.95);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.assignment-modal-card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.assignment-modal-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-main);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
 .congrats-overlay {
   position: fixed;
   top: 20px;
@@ -175,7 +260,7 @@ h1 {
 }
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: 20px;
   color: var(--text-muted);
   font-style: italic;
   font-size: 0.95rem;
