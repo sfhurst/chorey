@@ -5,10 +5,11 @@ const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Fri
 const monthsOfYear = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const familyRoster = {
-  Steve: { code: "0612", themeCat: "kitchen", isAdmin: true },
-  Sandy: { code: "1018", themeCat: "basement", isAdmin: true },
-  Jace: { code: "0302", themeCat: "upstairs-bedrooms", isAdmin: false },
-  Phin: { code: "0228", themeCat: "upstairs-bathroom", isAdmin: false },
+  // Steve is now the Owner
+  Steve: { code: "0612", themeCat: "kitchen", isAdmin: true, isOwner: true },
+  Sandy: { code: "1018", themeCat: "basement", isAdmin: true, isOwner: false },
+  Jace: { code: "0302", themeCat: "upstairs-bedrooms", isAdmin: false, isOwner: false },
+  Phin: { code: "0228", themeCat: "upstairs-bathroom", isAdmin: false, isOwner: false },
 };
 
 function getWeekOfMonth(date) {
@@ -47,7 +48,7 @@ function generateTodaysList() {
       rotationTasks.forEach(task => {
         todaysChores.push({
           rawTask: task,
-          displayTask: `Weekend ${weekNum}: ${task}`,
+          displayTask: `Weekend: ${task}`,
           type: "Monthly",
         });
       });
@@ -283,6 +284,12 @@ function handleTaskTextTap(choreId, choreType) {
   const activeUser = localStorage.getItem("family_active_user");
   const userProfile = familyRoster[activeUser];
 
+  // Master Key: Owner bypass
+  if (userProfile.isOwner) {
+    openAssignmentModal(choreId, choreType, null, activeUser);
+    return;
+  }
+
   let boardState = JSON.parse(localStorage.getItem("chore_board_state")) || {};
   const currentTask = boardState[choreId] || { assignedTo: null, isDone: false, assignedByAdmin: false };
 
@@ -322,8 +329,11 @@ function openAssignmentModal(choreId, choreType, currentTask, activeUser) {
       <ul class="chore-list">
   `;
 
+  const userProfile = familyRoster[activeUser];
+
   Object.keys(familyRoster).forEach(name => {
-    if (familyRoster[name].isAdmin && name !== activeUser) return;
+    // Standard rule: Admin cannot reassign other Admins
+    if (!userProfile.isOwner && familyRoster[name].isAdmin && name !== activeUser) return;
 
     const categoryColor = familyRoster[name].themeCat;
     modalHTML += `
@@ -380,6 +390,16 @@ function openAssignmentModal(choreId, choreType, currentTask, activeUser) {
 function toggleChoreCompletion(choreId, choreType, isChecked) {
   const activeUser = localStorage.getItem("family_active_user");
   const activeProfile = familyRoster[activeUser];
+
+  // Master Key: Owner bypass
+  if (activeProfile.isOwner) {
+    let state = JSON.parse(localStorage.getItem("chore_board_state")) || {};
+    let current = state[choreId] || { assignedTo: activeUser, isDone: false };
+    state[choreId] = { ...current, assignedTo: current.assignedTo || activeUser, isDone: isChecked, worker: activeUser };
+    localStorage.setItem("chore_board_state", JSON.stringify(state));
+    renderView();
+    return true;
+  }
 
   let boardState = JSON.parse(localStorage.getItem("chore_board_state")) || {};
   let currentTask = boardState[choreId] || { assignedTo: null, isDone: false, worker: null, assignedByAdmin: false };
