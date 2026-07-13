@@ -1,9 +1,9 @@
 // ==========================================
-// CHOREY STORAGE SERVICE — SCHEMA VERSION 2
+// CHOREY STORAGE SERVICE — SCHEMA VERSION 3
 // ==========================================
 // This is the only file that may access localStorage.
 const ChoreyStorage = (() => {
-  const CURRENT_SCHEMA_VERSION = 2;
+  const CURRENT_SCHEMA_VERSION = 3;
   const ROOT_STORAGE_KEY = "chorey_app_state";
   const LEGACY_KEYS = {
     activePerson: ["chorey_active_person", "family_active_user"],
@@ -90,6 +90,7 @@ const ChoreyStorage = (() => {
       isDone: Boolean(taskState.isDone),
       completedById: findPersonId(taskState.completedById ?? taskState.worker),
       assignedByAdmin: Boolean(taskState.assignedByAdmin),
+      assignedByCompletion: Boolean(taskState.assignedByCompletion),
       completedAt: typeof taskState.completedAt === "string" ? taskState.completedAt : null,
     };
   }
