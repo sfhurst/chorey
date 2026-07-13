@@ -83,6 +83,7 @@ function buildDayData() {
 
 let activeDayData = null;
 let congratsTriggeredForToday = false;
+let openSwipeWrapper = null;
 
 function initApp() {
   activeDayData = buildDayData();
@@ -146,6 +147,7 @@ function renderView() {
   if (completed === activeDayData.occurrences.length && !congratsTriggeredForToday) triggerTemporaryCongrats();
 
   const order = ["unassigned", activePerson.id, ...people.filter(person => person.id !== activePerson.id).map(person => person.id)];
+  openSwipeWrapper = null;
   viewport.innerHTML = order.map(id => renderSection(id, sections.get(id) || [])).join("");
   viewport.querySelectorAll(".chore-item[data-id]").forEach(row => {
     row.querySelector(".chore-text-target")?.addEventListener("click", event => { event.stopPropagation(); handleTaskTextTap(row.dataset.id); });
@@ -202,20 +204,30 @@ function enableSwipeDelete(wrapper) {
   const setOffset = value => {
     currentOffset = Math.max(-revealWidth, Math.min(0, value));
     card.style.transform = `translateX(${currentOffset}px)`;
+    wrapper.classList.toggle("swipe-revealing", currentOffset < -1);
     wrapper.classList.toggle("swipe-open", currentOffset <= -revealWidth / 2);
   };
 
-  const close = () => setOffset(0);
-  const open = () => setOffset(-revealWidth);
+  const close = () => {
+    setOffset(0);
+    if (openSwipeWrapper === wrapper) openSwipeWrapper = null;
+  };
+  const open = () => {
+    if (openSwipeWrapper && openSwipeWrapper !== wrapper) openSwipeWrapper._closeSwipe?.();
+    setOffset(-revealWidth);
+    openSwipeWrapper = wrapper;
+  };
+  wrapper._closeSwipe = close;
 
   card.addEventListener("pointerdown", event => {
+    if (event.target.closest("input, button, a, [role=button]")) return;
     if (event.button !== undefined && event.button !== 0) return;
+    if (openSwipeWrapper && openSwipeWrapper !== wrapper) openSwipeWrapper._closeSwipe?.();
     tracking = true;
     horizontal = false;
     startX = event.clientX;
     startY = event.clientY;
     startingOffset = wrapper.classList.contains("swipe-open") ? -revealWidth : 0;
-    card.setPointerCapture?.(event.pointerId);
     card.classList.add("swiping");
   });
 
@@ -227,6 +239,7 @@ function enableSwipeDelete(wrapper) {
     if (!horizontal) {
       if (Math.abs(dy) > Math.abs(dx)) { tracking = false; card.classList.remove("swiping"); return; }
       horizontal = true;
+      card.setPointerCapture?.(event.pointerId);
     }
     event.preventDefault();
     setOffset(startingOffset + dx);
@@ -234,6 +247,13 @@ function enableSwipeDelete(wrapper) {
 
   let suppressClick = false;
   card.addEventListener("click", event => {
+    if (wrapper.classList.contains("swipe-open")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressClick = false;
+      close();
+      return;
+    }
     if (!suppressClick) return;
     event.preventDefault();
     event.stopImmediatePropagation();

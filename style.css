@@ -395,6 +395,18 @@ h1 {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+
+.swipe-row.swipe-revealing .swipe-delete-button,
+.swipe-row.swipe-open .swipe-delete-button {
+  opacity: 1;
+}
+
+.swipe-row.swipe-open .swipe-delete-button {
+  pointer-events: auto;
 }
 
 .swipe-delete-button:active {
