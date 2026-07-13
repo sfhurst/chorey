@@ -180,7 +180,7 @@ function renderSection(sectionId, items) {
 function renderTaskRow(item) {
   const slug = item.task.category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const active = getActivePerson();
-  const canDelete = Boolean(active && (active.isOwner || item.task.createdById === active.id));
+  const canDelete = Boolean(active && !item.isDone && (active.isOwner || item.task.createdById === active.id));
   const taskCard = `<div class="chore-item ${item.isDone ? "completed-row" : ""}" data-id="${escapeHTML(item.id)}" data-cat="${escapeHTML(slug)}"><input type="checkbox" class="chore-checkbox" ${item.isDone ? "checked" : ""} tabindex="-1"><div class="chore-text-target"><span class="chore-title">${escapeHTML(item.displayTask)}</span></div></div>`;
   if (!canDelete) return `<li class="swipe-row">${taskCard}</li>`;
   return `<li class="swipe-row can-delete" data-task-id="${escapeHTML(item.task.id)}"><button class="swipe-delete-button" type="button" aria-label="Delete ${escapeHTML(item.displayTask)}">Delete</button>${taskCard}</li>`;
@@ -262,7 +262,13 @@ function enableSwipeDelete(wrapper) {
     if (!task) return renderView();
     const active = getActivePerson();
     if (!(active && (active.isOwner || task.createdById === active.id))) return close();
-    if (!confirm(`Delete “${task.category}: ${task.name}”?`)) return close();
+    const label = `${task.category}: ${task.name}`;
+    if (task.schedule.type === "once") {
+      if (!confirm(`Delete “${label}”?`)) return close();
+    } else {
+      if (!confirm(`Permanently delete recurring task “${label}”?\n\nIt will be removed from storage and will not appear again in future schedules.`)) return close();
+      if (!confirm(`This also removes its saved assignment and completion records. This cannot be undone.\n\nDelete “${label}” permanently?`)) return close();
+    }
     ChoreyStorage.deleteTask(task.id);
     activeDayData = buildDayData();
     renderView();
