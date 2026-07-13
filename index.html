@@ -3,20 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Daily Chores</title>
+    <meta name="theme-color" content="#121212" />
+    <title>Chorey</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="container">
       <header>
-        <h1 id="day-heading">Today's Chores</h1>
-        <div class="date-display" id="date-subheading" style="cursor: pointer"></div>
+        <div class="header-row">
+          <h1 id="day-heading">Today's Tasks</h1>
+          <div id="header-actions"></div>
+        </div>
+        <div class="date-display" id="date-subheading" title="Select another profile"></div>
       </header>
-      <main id="app-viewport">
-        <ul id="chore-container" class="chore-list"></ul>
-      </main>
+      <main id="app-viewport"></main>
     </div>
+
     <script src="chore_list.js"></script>
+    <script src="storage.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
