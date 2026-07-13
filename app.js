@@ -194,24 +194,36 @@ function enableSwipeDelete(wrapper) {
   if (!card || !deleteButton) return;
 
   const revealWidth = 88;
-  const horizontalThreshold = 14;
-  const directionBias = 1.35;
+  const horizontalThreshold = 10;
+  const directionBias = 1.18;
+  const revealDelayMs = 140;
   let startX = 0;
   let startY = 0;
   let startingOffset = 0;
   let currentOffset = 0;
   let tracking = false;
   let gestureMode = "idle";
+  let revealReady = false;
+  let revealTimer = null;
+
+  const clearRevealTimer = () => {
+    if (revealTimer !== null) {
+      window.clearTimeout(revealTimer);
+      revealTimer = null;
+    }
+  };
 
   const setOffset = value => {
     currentOffset = Math.max(-revealWidth, Math.min(0, value));
     card.style.transform = `translateX(${currentOffset}px)`;
-    const revealing = gestureMode === "horizontal" && currentOffset < -4;
+    const revealing = gestureMode === "horizontal" && revealReady && currentOffset < -4;
     wrapper.classList.toggle("swipe-revealing", revealing);
     wrapper.classList.toggle("swipe-open", currentOffset <= -revealWidth / 2);
   };
 
   const close = () => {
+    clearRevealTimer();
+    revealReady = false;
     gestureMode = "idle";
     setOffset(0);
     wrapper.classList.remove("swipe-revealing");
@@ -219,6 +231,8 @@ function enableSwipeDelete(wrapper) {
   };
 
   const open = () => {
+    clearRevealTimer();
+    revealReady = true;
     if (openSwipeWrapper && openSwipeWrapper !== wrapper) openSwipeWrapper._closeSwipe?.();
     gestureMode = "idle";
     setOffset(-revealWidth);
@@ -260,10 +274,29 @@ function enableSwipeDelete(wrapper) {
 
       gestureMode = "horizontal";
       card.classList.add("swiping");
+      clearRevealTimer();
+      revealReady = false;
+      revealTimer = window.setTimeout(() => {
+        revealTimer = null;
+        if (tracking && gestureMode === "horizontal" && currentOffset < -4) {
+          revealReady = true;
+          wrapper.classList.add("swipe-revealing");
+        }
+      }, revealDelayMs);
       card.setPointerCapture?.(event.pointerId);
     }
 
     if (gestureMode !== "horizontal") return;
+
+    // Before the short reveal delay expires, allow a strong vertical turn
+    // to cancel the swipe. This prevents fast phone scrolling from flashing Delete.
+    if (!revealReady && absY > absX * 1.05) {
+      tracking = false;
+      card.classList.remove("swiping");
+      close();
+      return;
+    }
+
     event.preventDefault();
     setOffset(startingOffset + dx);
   });
@@ -302,6 +335,7 @@ function enableSwipeDelete(wrapper) {
 
   card.addEventListener("pointerup", finish);
   card.addEventListener("pointercancel", () => {
+    clearRevealTimer();
     tracking = false;
     card.classList.remove("swiping");
     close();
