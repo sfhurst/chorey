@@ -194,29 +194,39 @@ function enableSwipeDelete(wrapper) {
   if (!card || !deleteButton) return;
 
   const revealWidth = 88;
+  const horizontalThreshold = 14;
+  const directionBias = 1.35;
   let startX = 0;
   let startY = 0;
   let startingOffset = 0;
   let currentOffset = 0;
   let tracking = false;
-  let horizontal = false;
+  let gestureMode = "idle";
 
   const setOffset = value => {
     currentOffset = Math.max(-revealWidth, Math.min(0, value));
     card.style.transform = `translateX(${currentOffset}px)`;
-    wrapper.classList.toggle("swipe-revealing", currentOffset < -1);
+    const revealing = gestureMode === "horizontal" && currentOffset < -4;
+    wrapper.classList.toggle("swipe-revealing", revealing);
     wrapper.classList.toggle("swipe-open", currentOffset <= -revealWidth / 2);
   };
 
   const close = () => {
+    gestureMode = "idle";
     setOffset(0);
+    wrapper.classList.remove("swipe-revealing");
     if (openSwipeWrapper === wrapper) openSwipeWrapper = null;
   };
+
   const open = () => {
     if (openSwipeWrapper && openSwipeWrapper !== wrapper) openSwipeWrapper._closeSwipe?.();
+    gestureMode = "idle";
     setOffset(-revealWidth);
+    wrapper.classList.remove("swipe-revealing");
+    wrapper.classList.add("swipe-open");
     openSwipeWrapper = wrapper;
   };
+
   wrapper._closeSwipe = close;
 
   card.addEventListener("pointerdown", event => {
@@ -224,23 +234,36 @@ function enableSwipeDelete(wrapper) {
     if (event.button !== undefined && event.button !== 0) return;
     if (openSwipeWrapper && openSwipeWrapper !== wrapper) openSwipeWrapper._closeSwipe?.();
     tracking = true;
-    horizontal = false;
+    gestureMode = "undecided";
     startX = event.clientX;
     startY = event.clientY;
     startingOffset = wrapper.classList.contains("swipe-open") ? -revealWidth : 0;
-    card.classList.add("swiping");
   });
 
   card.addEventListener("pointermove", event => {
     if (!tracking) return;
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
-    if (!horizontal && Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
-    if (!horizontal) {
-      if (Math.abs(dy) > Math.abs(dx)) { tracking = false; card.classList.remove("swiping"); return; }
-      horizontal = true;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    if (gestureMode === "undecided") {
+      if (absX < horizontalThreshold && absY < horizontalThreshold) return;
+
+      if (absY >= absX || absX < absY * directionBias) {
+        gestureMode = "vertical";
+        tracking = false;
+        card.classList.remove("swiping");
+        close();
+        return;
+      }
+
+      gestureMode = "horizontal";
+      card.classList.add("swiping");
       card.setPointerCapture?.(event.pointerId);
     }
+
+    if (gestureMode !== "horizontal") return;
     event.preventDefault();
     setOffset(startingOffset + dx);
   });
@@ -261,20 +284,28 @@ function enableSwipeDelete(wrapper) {
   }, true);
 
   const finish = event => {
-    if (!tracking) return;
+    if (!tracking && gestureMode !== "horizontal") return;
     tracking = false;
     card.classList.remove("swiping");
-    if (horizontal) {
+
+    if (gestureMode === "horizontal") {
       suppressClick = true;
       event.preventDefault();
       event.stopPropagation();
       currentOffset <= -revealWidth / 2 ? open() : close();
       window.setTimeout(() => { suppressClick = false; }, 350);
+      return;
     }
+
+    close();
   };
 
   card.addEventListener("pointerup", finish);
-  card.addEventListener("pointercancel", () => { tracking = false; card.classList.remove("swiping"); currentOffset <= -revealWidth / 2 ? open() : close(); });
+  card.addEventListener("pointercancel", () => {
+    tracking = false;
+    card.classList.remove("swiping");
+    close();
+  });
 
   deleteButton.addEventListener("click", event => {
     event.stopPropagation();
@@ -284,13 +315,13 @@ function enableSwipeDelete(wrapper) {
     if (!(active && (active.isOwner || task.createdById === active.id))) return close();
     const label = `${task.category}: ${task.name}`;
     if (task.schedule.type === "once") {
-      if (!confirm(`Delete “${label}”?`)) return close();
+      if (!confirm(`Delete one-time task “${label}”?`)) return close();
     } else {
       if (!confirm(`Permanently delete recurring task “${label}”?\n\nIt will be removed from storage and will not appear again in future schedules.`)) return close();
-      if (!confirm(`This also removes its saved assignment and completion records. This cannot be undone.\n\nDelete “${label}” permanently?`)) return close();
+      if (!confirm("This also deletes all saved assignment and completion records for this recurring task. Continue?")) return close();
     }
     ChoreyStorage.deleteTask(task.id);
-    activeDayData = buildDayData();
+    close();
     renderView();
   });
 }
