@@ -4,6 +4,7 @@ const ChoreyApp = (() => {
 
   let activeDayData = null;
   let congratsTriggeredForToday = false;
+  let currentView = "today";
 
   async function getActivePerson() {
     return getPerson(await profileRepository.getActivePersonId());
@@ -19,16 +20,25 @@ const ChoreyApp = (() => {
     congratsTriggeredForToday = await dailyRepository.getCongratulationsShown();
 
     ChoreyUI.updateHeader(activePerson, async () => {
-      await ChoreyTaskCreator.open(await getActivePerson(), initApp);
-    });
+      await ChoreyTaskCreator.open(await getActivePerson(), refreshCurrentView);
+    }, { title: currentView === "all" ? "All Tasks" : undefined });
 
     if (!activePerson) {
+      currentView = "today";
       await profileRepository.clearActivePerson();
       renderLoginScreen();
       return;
     }
 
-    await renderView();
+    if (currentView === "all" && activePerson.isOwner) await renderAllTasks();
+    else {
+      currentView = "today";
+      await renderView();
+    }
+  }
+
+  async function refreshCurrentView() {
+    await initApp();
   }
 
   function renderLoginScreen() {
@@ -47,7 +57,6 @@ const ChoreyApp = (() => {
   async function mergeLegacyStates(states) {
     const legacy = await occurrenceRepository.getLegacyDailyStates();
     let changed = false;
-
     activeDayData.occurrences.forEach(item => {
       if (states[item.id]) return;
       const oldId = ChoreyScheduler.legacyStateId(item.task, item.occurrence);
@@ -56,12 +65,10 @@ const ChoreyApp = (() => {
         changed = true;
       }
     });
-
     if (changed) {
       await occurrenceRepository.saveAll(states);
       await occurrenceRepository.clearLegacyDailyStates();
     }
-
     return states;
   }
 
@@ -69,7 +76,13 @@ const ChoreyApp = (() => {
     const viewport = document.getElementById("app-viewport");
     const activePerson = await getActivePerson();
     if (!activePerson) return renderLoginScreen();
-    if (!activeDayData.occurrences.length) return ChoreyUI.renderEmptyDay();
+    document.getElementById("date-subheading").textContent = activeDayData.displayDate;
+
+    if (!activeDayData.occurrences.length) {
+      ChoreyUI.renderEmptyDay(activePerson);
+      viewport.querySelector("#view-all-tasks")?.addEventListener("click", showAllTasks);
+      return;
+    }
 
     const states = await mergeLegacyStates(await occurrenceRepository.getAll());
     const sections = new Map([["unassigned", []], ...people.map(person => [person.id, []])]);
@@ -80,6 +93,7 @@ const ChoreyApp = (() => {
         isDone: false,
         completedById: null,
         assignedByAdmin: false,
+        assignedById: null,
         assignedByCompletion: false,
       };
       const configured = { ...item, ...state };
@@ -88,48 +102,82 @@ const ChoreyApp = (() => {
     });
 
     const completed = activeDayData.occurrences.filter(item => states[item.id]?.isDone).length;
-    if (completed === activeDayData.occurrences.length && !congratsTriggeredForToday) {
-      await triggerTemporaryCongrats();
-    }
+    if (completed === activeDayData.occurrences.length && !congratsTriggeredForToday) await triggerTemporaryCongrats();
 
     ChoreySwipe.resetOpenRow();
     viewport.innerHTML = ChoreyUI.renderBoard(activePerson, activeDayData, sections);
 
     viewport.querySelectorAll(".chore-item[data-id]").forEach(row => {
-      row.querySelector(".chore-text-target")?.addEventListener("click", async event => {
+      row.querySelector(".assignment-button")?.addEventListener("click", async event => {
         event.stopPropagation();
-        await handleTaskTextTap(row.dataset.id);
+        await handleAssignmentControl(row.dataset.id);
       });
 
       const checkbox = row.querySelector(".chore-checkbox");
       checkbox?.addEventListener("click", event => event.stopPropagation());
       checkbox?.addEventListener("change", async event => {
-        if (!await toggleCompletion(row.dataset.id, event.target.checked)) {
-          event.target.checked = !event.target.checked;
-        }
+        if (!await toggleCompletion(row.dataset.id, event.target.checked)) event.target.checked = !event.target.checked;
       });
     });
 
-    viewport.querySelectorAll(".swipe-row.can-delete").forEach(wrapper => {
-      ChoreySwipe.enableDelete(wrapper, {
-        getTask: async taskId => (await taskRepository.getAll()).find(task => task.id === taskId),
-        getActivePerson,
-        deleteTask: taskId => taskRepository.delete(taskId),
-        refresh: initApp,
-      });
+    viewport.querySelectorAll(".swipe-row.can-edit").forEach(wrapper => {
+      ChoreySwipe.enableAction(wrapper, { onAction: () => openTaskEditor(wrapper.dataset.taskId) });
+    });
+    viewport.querySelector("#view-all-tasks")?.addEventListener("click", showAllTasks);
+  }
+
+  async function showAllTasks() {
+    currentView = "all";
+    await initApp();
+  }
+
+  async function renderAllTasks() {
+    const active = await getActivePerson();
+    if (!active?.isOwner) {
+      currentView = "today";
+      return renderView();
+    }
+    const viewport = document.getElementById("app-viewport");
+    document.getElementById("date-subheading").textContent = "Daily, Monthly, and Yearly";
+    ChoreySwipe.resetOpenRow();
+    viewport.innerHTML = ChoreyUI.renderAllTasks(await taskRepository.getAll());
+    viewport.querySelectorAll(".swipe-row.can-edit").forEach(wrapper => {
+      ChoreySwipe.enableAction(wrapper, { onAction: () => openTaskEditor(wrapper.dataset.taskId) });
+    });
+    viewport.querySelector("#back-to-today")?.addEventListener("click", async () => {
+      currentView = "today";
+      await initApp();
     });
   }
 
-  async function handleTaskTextTap(id) {
+  async function openTaskEditor(taskId) {
+    const active = await getActivePerson();
+    if (!active?.isOwner) return;
+    const task = (await taskRepository.getAll()).find(item => item.id === taskId);
+    if (!task) return refreshCurrentView();
+    await ChoreyTaskCreator.open(active, refreshCurrentView, task);
+  }
+
+  async function handleAssignmentControl(id) {
     const active = await getActivePerson();
     const states = await occurrenceRepository.getAll();
-    const current = states[id] || { assignedToId: null, isDone: false, assignedByAdmin: false, assignedByCompletion: false };
+    const current = states[id] || { assignedToId: null, isDone: false, assignedByAdmin: false, assignedById: null, assignedByCompletion: false };
     if (current.isDone) return;
-    if (active.isOwner || active.isAdmin) return openAssignmentModal(id, active);
+
+    if (active.isOwner) return openAssignmentModal(id, active);
+
+    if (active.isAdmin) {
+      const assignee = getPerson(current.assignedToId);
+      const assigner = getPerson(current.assignedById);
+      const ownerControlled = assignee?.isOwner || assigner?.isOwner || (current.assignedByAdmin && !current.assignedById && current.assignedToId !== active.id);
+      const canManage = !ownerControlled && (current.assignedToId === null || current.assignedById === active.id || (current.assignedToId === active.id && !current.assignedByAdmin));
+      if (!canManage) return;
+      return openAssignmentModal(id, active);
+    }
 
     if (current.assignedToId === null) {
-      states[id] = { assignedToId: active.id, isDone: false, completedById: null, assignedByAdmin: false, assignedByCompletion: false };
-    } else if (current.assignedToId === active.id && !current.assignedByAdmin) {
+      states[id] = { assignedToId: active.id, isDone: false, completedById: null, assignedByAdmin: false, assignedById: active.id, assignedByCompletion: false };
+    } else if (current.assignedToId === active.id && !current.assignedByAdmin && (!current.assignedById || current.assignedById === active.id)) {
       delete states[id];
     } else {
       return;
@@ -140,7 +188,7 @@ const ChoreyApp = (() => {
   }
 
   function openAssignmentModal(id, active) {
-    const assignable = people.filter(person => active.isOwner || !person.isAdmin || person.id === active.id);
+    const assignable = people.filter(person => active.isOwner || (!person.isOwner && (!person.isAdmin || person.id === active.id)));
     const overlay = document.createElement("div");
     overlay.className = "assignment-overlay";
     overlay.innerHTML = `<div class="assignment-modal-card"><div class="assignment-modal-title">Assign Task</div><ul class="chore-list">${assignable.map(person => `<li class="chore-item profile-card" data-assign="${person.id}" style="--person-accent:${person.accent}"><span class="chore-title">${escapeHTML(person.name)}</span></li>`).join("")}<li class="chore-item unassigned-option" data-assign=""><span class="chore-title">Unassigned</span></li></ul><button class="modal-cancel">Cancel</button></div>`;
@@ -156,7 +204,8 @@ const ChoreyApp = (() => {
           assignedToId: target,
           isDone: false,
           completedById: null,
-          assignedByAdmin: target !== active.id,
+          assignedByAdmin: true,
+          assignedById: active.id,
           assignedByCompletion: false,
         };
       } else {
@@ -166,7 +215,6 @@ const ChoreyApp = (() => {
       overlay.remove();
       await renderView();
     }));
-
     overlay.querySelector(".modal-cancel").addEventListener("click", () => overlay.remove());
   }
 
@@ -178,6 +226,7 @@ const ChoreyApp = (() => {
       isDone: false,
       completedById: null,
       assignedByAdmin: false,
+      assignedById: null,
       assignedByCompletion: false,
     };
 
@@ -185,6 +234,7 @@ const ChoreyApp = (() => {
       states[id] = {
         ...current,
         assignedToId: current.assignedToId || active.id,
+        assignedById: current.assignedToId ? current.assignedById : active.id,
         assignedByCompletion: current.assignedToId === null,
         isDone: true,
         completedById: active.id,
@@ -196,6 +246,7 @@ const ChoreyApp = (() => {
       states[id] = {
         ...current,
         assignedToId: current.assignedToId || active.id,
+        assignedById: current.assignedToId ? current.assignedById : active.id,
         assignedByCompletion: current.assignedToId === null,
         isDone: true,
         completedById: active.id,
@@ -204,18 +255,14 @@ const ChoreyApp = (() => {
     } else {
       const worker = getPerson(current.completedById);
       if (!(current.completedById === active.id || active.isOwner || (active.isAdmin && (!worker || !worker.isAdmin)))) return false;
-      if (current.assignedByCompletion) {
-        delete states[id];
-      } else {
-        states[id] = { ...current, isDone: false, completedById: null, completedAt: null };
-      }
+      if (current.assignedByCompletion) delete states[id];
+      else states[id] = { ...current, isDone: false, completedById: null, completedAt: null };
     }
 
     if (!checked) {
       congratsTriggeredForToday = false;
       await dailyRepository.setCongratulationsShown(false);
     }
-
     await occurrenceRepository.saveAll(states);
     await renderView();
     return true;
@@ -228,6 +275,7 @@ const ChoreyApp = (() => {
   }
 
   document.getElementById("date-subheading").addEventListener("click", async () => {
+    currentView = "today";
     await profileRepository.clearActivePerson();
     await initApp();
   });

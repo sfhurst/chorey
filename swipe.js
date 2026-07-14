@@ -5,10 +5,10 @@ const ChoreySwipe = (() => {
     openSwipeWrapper = null;
   }
 
-  function enableDelete(wrapper, { getTask, getActivePerson, deleteTask, refresh }) {
+  function enableAction(wrapper, { onAction }) {
     const card = wrapper.querySelector(".chore-item");
-    const deleteButton = wrapper.querySelector(".swipe-delete-button");
-    if (!card || !deleteButton) return;
+    const actionButton = wrapper.querySelector(".swipe-action-button");
+    if (!card || !actionButton) return;
 
     const revealWidth = 88;
     const horizontalThreshold = 10;
@@ -80,7 +80,6 @@ const ChoreySwipe = (() => {
 
       if (gestureMode === "undecided") {
         if (absX < horizontalThreshold && absY < horizontalThreshold) return;
-
         if (absY >= absX || absX < absY * directionBias) {
           gestureMode = "vertical";
           tracking = false;
@@ -104,7 +103,6 @@ const ChoreySwipe = (() => {
       }
 
       if (gestureMode !== "horizontal") return;
-
       if (!revealReady && absY > absX * 1.05) {
         tracking = false;
         card.classList.remove("swiping");
@@ -134,7 +132,6 @@ const ChoreySwipe = (() => {
       if (!tracking && gestureMode !== "horizontal") return;
       tracking = false;
       card.classList.remove("swiping");
-
       if (gestureMode === "horizontal") {
         suppressClick = true;
         event.preventDefault();
@@ -143,7 +140,6 @@ const ChoreySwipe = (() => {
         window.setTimeout(() => { suppressClick = false; }, 350);
         return;
       }
-
       close();
     };
 
@@ -155,24 +151,12 @@ const ChoreySwipe = (() => {
       close();
     });
 
-    deleteButton.addEventListener("click", async event => {
+    actionButton.addEventListener("click", async event => {
       event.stopPropagation();
-      const task = await getTask(wrapper.dataset.taskId);
-      if (!task) return refresh();
-      const active = await getActivePerson();
-      if (!(active && (active.isOwner || task.createdById === active.id))) return close();
-      const label = `${task.category}: ${task.name}`;
-      if (task.schedule.type === "once") {
-        if (!confirm(`Delete one-time task “${label}”?`)) return close();
-      } else {
-        if (!confirm(`Permanently delete recurring task “${label}”?\n\nIt will be removed from storage and will not appear again in future schedules.`)) return close();
-        if (!confirm("This also deletes all saved assignment and completion records for this recurring task. Continue?")) return close();
-      }
-      await deleteTask(task.id);
       close();
-      await refresh();
+      await onAction();
     });
   }
 
-  return Object.freeze({ enableDelete, resetOpenRow });
+  return Object.freeze({ enableAction, resetOpenRow });
 })();

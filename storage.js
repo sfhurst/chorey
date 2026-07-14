@@ -90,6 +90,7 @@ const ChoreyStorage = (() => {
       isDone: Boolean(taskState.isDone),
       completedById: findPersonId(taskState.completedById ?? taskState.worker),
       assignedByAdmin: Boolean(taskState.assignedByAdmin),
+      assignedById: findPersonId(taskState.assignedById),
       assignedByCompletion: Boolean(taskState.assignedByCompletion),
       completedAt: typeof taskState.completedAt === "string" ? taskState.completedAt : null,
     };
@@ -170,6 +171,15 @@ const ChoreyStorage = (() => {
     prepareDate,
     getTasks: () => clone(state.tasks),
     addTask(task) { const normalized = normalizeTask(task); if (!normalized) return null; state.tasks.push(normalized); saveState(); return clone(normalized); },
+    updateTask(task) {
+      const normalized = normalizeTask(task);
+      if (!normalized) return null;
+      const index = state.tasks.findIndex(item => item.id === normalized.id);
+      if (index < 0) return null;
+      state.tasks[index] = normalized;
+      saveState();
+      return clone(normalized);
+    },
     deleteTask(taskId) {
       const id = String(taskId || "");
       const originalLength = state.tasks.length;

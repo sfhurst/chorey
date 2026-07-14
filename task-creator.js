@@ -2,10 +2,23 @@ const ChoreyTaskCreator = (() => {
   const { daysOfWeek, monthsOfYear, escapeHTML, dateKey } = ChoreyUtils;
   const { taskRepository } = ChoreyRepositories;
 
-  async function open(owner, onSaved) {
+  const clone = value => JSON.parse(JSON.stringify(value));
+
+  async function open(owner, onSaved, existingTask = null) {
     if (!owner?.isOwner) return;
 
-    const draft = {
+    const editing = Boolean(existingTask);
+    const original = existingTask ? clone(existingTask) : null;
+    const draft = existingTask ? {
+      name: existingTask.name,
+      category: existingTask.category,
+      type: existingTask.schedule.type,
+      days: [...(existingTask.schedule.days || [])],
+      weekend: existingTask.schedule.weekend ?? null,
+      months: [...(existingTask.schedule.months || [])],
+      date: existingTask.schedule.date || null,
+      seasonal: ["days", "weekends"].includes(existingTask.schedule.type) && Boolean(existingTask.schedule.months?.length),
+    } : {
       name: "",
       category: "General",
       type: null,
@@ -25,10 +38,12 @@ const ChoreyTaskCreator = (() => {
     };
     const cancelButton = () => '<button class="modal-cancel" data-cancel>Cancel</button>';
     const bindCancel = () => overlay.querySelector("[data-cancel]")?.addEventListener("click", () => overlay.remove());
+    const selectedClass = selected => selected ? " current-selection" : "";
 
     function askName() {
-      show(`<div class="assignment-modal-title">New Task</div><label class="field-label">Name<input class="text-input" id="task-name" maxlength="80" autofocus></label><button class="primary-button" id="continue">Continue</button>${cancelButton()}`);
+      show(`<div class="assignment-modal-title">${editing ? "Edit Task" : "New Task"}</div><label class="field-label">Name<input class="text-input" id="task-name" maxlength="80" value="${escapeHTML(draft.name)}" autofocus></label><button class="primary-button" id="continue">Continue</button>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelector("#continue").addEventListener("click", () => {
         draft.name = overlay.querySelector("#task-name").value.trim();
         if (!draft.name) return alert("Enter a task name.");
@@ -45,22 +60,18 @@ const ChoreyTaskCreator = (() => {
         if (!categories.has(key)) categories.set(key, category);
       };
 
-      Object.values(legacyChoreSchedule.days).flat().forEach(label => {
-        addCategory(splitTaskLabel(label).category);
-      });
-
-      const tasks = await taskRepository.getAll();
-      tasks
-        .filter(task => task.active !== false && !/^task-(days|weekends|months)-/.test(String(task.id || "")))
+      Object.values(legacyChoreSchedule.days).flat().forEach(label => addCategory(splitTaskLabel(label).category));
+      (await taskRepository.getAll())
+        .filter(task => task.active !== false)
         .forEach(task => addCategory(task.category));
-
       return [...categories.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     }
 
     async function chooseCategory() {
       const categories = await getExistingCategories();
-      show(`<div class="assignment-modal-title">Choose a category</div><ul class="chore-list category-selector-list">${categories.map(category => `<li class="chore-item selector-row" data-category="${escapeHTML(category)}"><span class="chore-title">${escapeHTML(category)}</span></li>`).join("")}<li class="chore-item selector-row" data-new-category><span class="chore-title">Add new category</span></li></ul>${cancelButton()}`);
+      show(`<div class="assignment-modal-title">Choose a category</div><ul class="chore-list category-selector-list">${categories.map(category => `<li class="chore-item selector-row${selectedClass(category === draft.category)}" data-category="${escapeHTML(category)}"><span class="chore-title">${escapeHTML(category)}</span></li>`).join("")}<li class="chore-item selector-row" data-new-category><span class="chore-title">Add new category</span></li></ul>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelectorAll("[data-category]").forEach(row => row.addEventListener("click", () => {
         draft.category = row.dataset.category;
         chooseType();
@@ -69,8 +80,9 @@ const ChoreyTaskCreator = (() => {
     }
 
     function askNewCategory() {
-      show(`<div class="assignment-modal-title">New category</div><label class="field-label">Category name<input class="text-input" id="new-category" maxlength="40" autofocus></label><button class="primary-button" id="accept-category">Accept</button>${cancelButton()}`);
+      show(`<div class="assignment-modal-title">New category</div><label class="field-label">Category name<input class="text-input" id="new-category" maxlength="40" autofocus></label><button class="primary-button" id="accept-category">Accept</button>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelector("#accept-category").addEventListener("click", async () => {
         const category = overlay.querySelector("#new-category").value.trim();
         if (!category) return alert("Enter a category name.");
@@ -81,8 +93,10 @@ const ChoreyTaskCreator = (() => {
     }
 
     function chooseType() {
-      show(`<div class="assignment-modal-title">How often?</div><ul class="chore-list">${[["once", "Once"], ["days", "Days"], ["weekends", "Weekends"], ["months", "Months"]].map(([value, label]) => `<li class="chore-item selector-row" data-type="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul>${cancelButton()}`);
+      const choices = [["once", "Once"], ["days", "Days"], ["weekends", "Weekends"], ["months", "Months"]];
+      show(`<div class="assignment-modal-title">How often?</div><ul class="chore-list">${choices.map(([value, label]) => `<li class="chore-item selector-row${selectedClass(draft.type === value)}" data-type="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelectorAll("[data-type]").forEach(row => row.addEventListener("click", () => {
         draft.type = row.dataset.type;
         if (draft.type === "once") chooseDate();
@@ -98,77 +112,124 @@ const ChoreyTaskCreator = (() => {
       for (let offset = 0; offset < 8; offset++) {
         const date = new Date(today);
         date.setDate(today.getDate() + offset);
-        const label = offset === 0
-          ? "Today"
-          : offset === 1
-            ? "Tomorrow"
-            : offset === 7
-              ? `Next ${daysOfWeek[date.getDay()]}`
-              : daysOfWeek[date.getDay()];
-        options.push({ label, value: dateKey(date) });
+        const value = dateKey(date);
+        const label = offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : offset === 7 ? `Next ${daysOfWeek[date.getDay()]}` : daysOfWeek[date.getDay()];
+        options.push({ label, value });
       }
-      show(`<div class="assignment-modal-title">Choose a day</div><ul class="chore-list">${options.map(option => `<li class="chore-item selector-row" data-date="${option.value}"><span class="chore-title">${option.label}</span></li>`).join("")}</ul>${cancelButton()}`);
+      if (draft.date && !options.some(option => option.value === draft.date)) options.unshift({ label: draft.date, value: draft.date });
+      show(`<div class="assignment-modal-title">Choose a day</div><ul class="chore-list">${options.map(option => `<li class="chore-item selector-row${selectedClass(option.value === draft.date)}" data-date="${option.value}"><span class="chore-title">${escapeHTML(option.label)}</span></li>`).join("")}</ul>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelectorAll("[data-date]").forEach(row => row.addEventListener("click", () => {
         draft.date = row.dataset.date;
+        draft.days = [];
+        draft.weekend = null;
+        draft.months = [];
         saveTask();
       }));
     }
 
     function chooseDays() {
-      show(`<div class="assignment-modal-title">Choose days</div><div class="selector-list">${daysOfWeek.map((day, index) => `<label class="selector-check"><input type="checkbox" value="${index}"><span>${day}</span></label>`).join("")}<label class="selector-check seasonal-check"><input type="checkbox" id="seasonal"><span>Seasonal</span></label></div><button class="primary-button" id="accept">Accept</button>${cancelButton()}`);
+      show(`<div class="assignment-modal-title">Choose days</div><div class="selector-list">${daysOfWeek.map((day, index) => `<label class="selector-check${selectedClass(draft.days.includes(index))}"><input type="checkbox" value="${index}" ${draft.days.includes(index) ? "checked" : ""}><span>${day}</span></label>`).join("")}<label class="selector-check seasonal-check${selectedClass(draft.seasonal)}"><input type="checkbox" id="seasonal" ${draft.seasonal ? "checked" : ""}><span>Seasonal</span></label></div><button class="primary-button" id="accept">Accept</button>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelector("#accept").addEventListener("click", () => {
         draft.days = [...overlay.querySelectorAll('.selector-check input[type="checkbox"]:checked')]
           .filter(input => input.id !== "seasonal")
           .map(input => Number(input.value));
         draft.seasonal = overlay.querySelector("#seasonal").checked;
+        draft.weekend = null;
+        draft.date = null;
         if (!draft.days.length) return alert("Choose at least one day.");
+        if (!draft.seasonal) draft.months = [];
         draft.seasonal ? chooseMonths(true) : saveTask();
       });
     }
 
     function chooseWeekend() {
       const options = [[1, "First weekend"], [2, "Second weekend"], [3, "Third weekend"], [4, "Fourth weekend"], [5, "Fifth weekend"], ["last", "Last weekend"]];
-      show(`<div class="assignment-modal-title">Choose a weekend</div><ul class="chore-list">${options.map(([value, label]) => `<li class="chore-item selector-row" data-weekend="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul><label class="selector-check seasonal-check"><input type="checkbox" id="seasonal"><span>Seasonal</span></label>${cancelButton()}`);
+      show(`<div class="assignment-modal-title">Choose a weekend</div><ul class="chore-list">${options.map(([value, label]) => `<li class="chore-item selector-row${selectedClass(String(draft.weekend) === String(value))}" data-weekend="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul><label class="selector-check seasonal-check${selectedClass(draft.seasonal)}"><input type="checkbox" id="seasonal" ${draft.seasonal ? "checked" : ""}><span>Seasonal</span></label>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelectorAll("[data-weekend]").forEach(row => row.addEventListener("click", () => {
         draft.weekend = row.dataset.weekend === "last" ? "last" : Number(row.dataset.weekend);
         draft.seasonal = overlay.querySelector("#seasonal").checked;
+        draft.days = [];
+        draft.date = null;
+        if (!draft.seasonal) draft.months = [];
         draft.seasonal ? chooseMonths(true) : saveTask();
       }));
     }
 
     function chooseMonths(isSeasonal) {
-      show(`<div class="assignment-modal-title">${isSeasonal ? "Choose active months" : "Choose months"}</div><div class="selector-list">${monthsOfYear.map((month, index) => `<label class="selector-check"><input type="checkbox" value="${index + 1}"><span>${month}</span></label>`).join("")}</div><button class="primary-button" id="accept">Accept</button>${cancelButton()}`);
+      show(`<div class="assignment-modal-title">${isSeasonal ? "Choose active months" : "Choose months"}</div><div class="selector-list">${monthsOfYear.map((month, index) => `<label class="selector-check${selectedClass(draft.months.includes(index + 1))}"><input type="checkbox" value="${index + 1}" ${draft.months.includes(index + 1) ? "checked" : ""}><span>${month}</span></label>`).join("")}</div><button class="primary-button" id="accept">Accept</button>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
+      bindDelete();
       overlay.querySelector("#accept").addEventListener("click", () => {
         draft.months = [...overlay.querySelectorAll('.selector-check input:checked')].map(input => Number(input.value));
         if (!draft.months.length) return alert("Choose at least one month.");
+        if (!isSeasonal) {
+          draft.days = [];
+          draft.weekend = null;
+          draft.date = null;
+        }
         saveTask();
       });
     }
 
+    function deleteControl() {
+      return '<button class="hold-delete-button" type="button" data-hold-delete><span class="hold-delete-progress"></span><span class="hold-delete-label">Hold to Permanently Delete</span></button>';
+    }
+
+    function bindDelete() {
+      const button = overlay.querySelector("[data-hold-delete]");
+      if (!button || !editing) return;
+      let timer = null;
+      let completed = false;
+      const cancelHold = () => {
+        if (timer !== null) window.clearTimeout(timer);
+        timer = null;
+        if (!completed) button.classList.remove("holding");
+      };
+      const beginHold = event => {
+        if (event.button !== undefined && event.button !== 0) return;
+        completed = false;
+        button.classList.add("holding");
+        timer = window.setTimeout(async () => {
+          completed = true;
+          timer = null;
+          await taskRepository.delete(original.id);
+          overlay.remove();
+          await onSaved({ deleted: true, taskId: original.id });
+        }, 2000);
+      };
+      button.addEventListener("pointerdown", beginHold);
+      button.addEventListener("pointerup", cancelHold);
+      button.addEventListener("pointerleave", cancelHold);
+      button.addEventListener("pointercancel", cancelHold);
+      button.addEventListener("contextmenu", event => event.preventDefault());
+    }
+
     async function saveTask() {
-      const id = globalThis.crypto?.randomUUID?.() || `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      await taskRepository.add({
-        id,
+      const task = {
+        id: editing ? original.id : (globalThis.crypto?.randomUUID?.() || `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
         name: draft.name,
         category: draft.category,
         schedule: {
           type: draft.type,
-          date: draft.date,
-          days: draft.days,
-          weekend: draft.weekend,
-          months: draft.months,
+          date: draft.type === "once" ? draft.date : null,
+          days: draft.type === "days" ? draft.days : [],
+          weekend: draft.type === "weekends" ? draft.weekend : null,
+          months: ["months"].includes(draft.type) || draft.seasonal ? draft.months : [],
         },
-        visibility: { type: "household", visibleToIds: [] },
-        createdById: owner.id,
-        createdAt: new Date().toISOString(),
-        active: true,
-      });
+        visibility: original?.visibility || { type: "household", visibleToIds: [] },
+        createdById: original?.createdById || owner.id,
+        createdAt: original?.createdAt || new Date().toISOString(),
+        active: original?.active !== false,
+      };
+      editing ? await taskRepository.update(task) : await taskRepository.add(task);
       overlay.remove();
-      await onSaved();
+      await onSaved({ deleted: false, taskId: task.id });
     }
 
     askName();

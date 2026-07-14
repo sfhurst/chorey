@@ -8,6 +8,7 @@ const ChoreyRepositories = (() => {
   const taskRepository = Object.freeze({
     async getAll() { return ChoreyStorage.getTasks(); },
     async add(task) { return ChoreyStorage.addTask(task); },
+    async update(task) { return ChoreyStorage.updateTask(task); },
     async delete(taskId) { return ChoreyStorage.deleteTask(taskId); },
   });
 
