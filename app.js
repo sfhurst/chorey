@@ -307,6 +307,7 @@ const ChoreyApp = (() => {
     overlay.innerHTML = `
       <div class="developer-modal-card" role="dialog" aria-modal="true" aria-label="Developer menu">
         <div class="developer-modal-title">Developer</div>
+        <div class="developer-version">Chorey v${escapeHTML(CHOREY_APP_VERSION)}</div>
         <div class="developer-date-status">Scheduler date: ${escapeHTML(simulated)}</div>
         <button class="developer-menu-button danger" data-dev-action="reset">Reset Local Data</button>
         <div class="developer-menu-label">Time Travel</div>

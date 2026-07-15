@@ -54,6 +54,18 @@ The congratulations message is based on what is due today:
 
 This allows the user to finish today's work without a large monthly task blocking that sense of completion all month.
 
+
+## Identity and versioning
+
+Chorey uses a minimal house-and-checkmark mark. The checkmark forms the left slope of the roof, combining household awareness and task attention in one simple shape. Browser favicons use the mark on a transparent background; Apple touch and Android/PWA icons place the same mark on a quiet rounded tile for reliable home-screen display.
+
+The application release is currently **v0.6.1**. Application version and storage schema version are intentionally separate:
+
+- **App version** changes when Chorey code, design, documentation, or behavior changes.
+- **Storage schema version** changes only when the saved-data structure requires migration.
+
+Static CSS and JavaScript references include the app version as a cache-busting query string. This helps browsers fetch new GitHub Pages releases without clearing Chorey's local task data. Reset Local Data still resets saved Chorey data; it is not a browser-cache command.
+
 ## Current architecture
 
 Chorey is a static JavaScript application designed to remain usable throughout development.
@@ -135,3 +147,66 @@ Long-press the date for one second to open the local developer menu. A normal ta
 ### Assignment indicator
 
 The person icon on a task is both an assignment control and a status indicator. It is neutral when the task is unassigned and uses the assigned household member's color when assigned.
+
+
+---
+
+# Design Philosophy
+
+> **A calm home is built through consistent awareness, not perfect completion.**
+
+## Completion means appropriate attention
+
+A completed task means the task received appropriate attention, not necessarily that physical work was performed.
+
+If the garbage is already empty, checking that it does not need to be taken out is a successful completion. If the refrigerator is already clean enough, noticing that is success. Chorey reminds you to pay attention, not to perform unnecessary work.
+
+## The app forgets on purpose
+
+Chorey intentionally remembers only the current cycle.
+
+- Daily tasks exist today.
+- Weekly tasks exist this week.
+- Monthly tasks exist this month.
+
+When a cycle ends, its completion data is discarded. There are no overdue chores, missed-day penalties, streaks, or guilt metrics. Every cycle begins fresh.
+
+## Simplicity over flexibility
+
+Whenever possible, Chorey chooses the simplest rule that solves the real problem. Features are added only after repeated real-world need, not because they are theoretically possible.
+
+"As needed" is implied throughout the application.
+
+## Progressive disclosure
+
+Advanced features should remain hidden until intentionally requested.
+
+Examples include:
+- Long-press the date for Developer Tools.
+- Long-press a task (planned) to reveal notes.
+- Swipe within expanded notes (planned) to edit.
+
+The interface should remain calm and uncluttered.
+
+## Information expands naturally
+
+Information belongs to the task it describes. Rather than opening separate screens, tasks should gently expand to reveal additional information while keeping the user in context.
+
+## Every control communicates state
+
+Controls should communicate their current state whenever possible.
+
+- Checkbox = completion state.
+- Person icon = assignment state.
+- Gray person = unassigned.
+- Colored person = assigned household member.
+
+## Development philosophy
+
+The static GitHub Pages version is the primary development platform. New ideas should prove themselves there before moving to Supabase. Cloud synchronization should replace the storage layer—not the philosophy.
+
+## Chorey 2
+
+Chorey 1 establishes the scheduling engine.
+
+Chorey 2 will enrich the task itself through features such as task notes, default assignments, private tasks, and shared households while preserving the calm, minimal interface.

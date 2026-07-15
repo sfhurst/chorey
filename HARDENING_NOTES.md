@@ -44,3 +44,7 @@ Clearing the browser's site data remains a true factory reset. It removes custom
 - Unassigned tasks use the neutral interface color.
 - Assigned tasks tint the same icon with the assigned person's configured accent color.
 - Assignment permissions and click behavior are unchanged.
+
+## Identity and versioning release
+
+Version 0.6.0 adds the Chorey house/checklist icon set, web manifest, cache-busted static references, and an app-version constant that remains independent of storage schema version 5.

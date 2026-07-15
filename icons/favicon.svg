@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Blue house is drawn first -->
+  <g fill="none"
+     stroke="#12335B"
+     stroke-width="42"
+     stroke-linecap="round"
+     stroke-linejoin="round">
+    <!-- Centered house base: midpoint is exactly x=256 -->
+    <path d="M150 292 V394 H362 V292" />
+
+    <!-- Right roof starts at the centered peak -->
+    <path d="M256 112 L410 266" />
+
+    <!-- Chimney -->
+    <path d="M354 146 V202" />
+  </g>
+
+  <!-- Green checkmark / left roof is drawn last, so it stays above blue -->
+  <path d="M84 206 L150 272 L256 112"
+        fill="none"
+        stroke="#6F9F78"
+        stroke-width="42"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>
