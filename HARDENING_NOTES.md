@@ -37,3 +37,10 @@ Clearing the browser's site data remains a true factory reset. It removes custom
 - Next Month advances one calendar month and clamps dates such as January 31 to the last valid day of February.
 - Return to Today removes the override.
 - Reset Local Data removes the root and legacy Chorey storage keys, then reloads the hardcoded defaults.
+
+## Assignment icon refinement
+
+- Replaced the assignment plus/minus text control with a single outline-person icon.
+- Unassigned tasks use the neutral interface color.
+- Assigned tasks tint the same icon with the assigned person's configured accent color.
+- Assignment permissions and click behavior are unchanged.

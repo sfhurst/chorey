@@ -39,7 +39,6 @@ const ChoreyUI = (() => {
     const assignee = getPerson(item.assignedToId);
     const assigner = getPerson(item.assignedById);
     let canManage = false;
-    let symbol = "+";
 
     if (activePerson.isOwner) {
       canManage = true;
@@ -49,11 +48,15 @@ const ChoreyUI = (() => {
     } else {
       if (item.isDone) return "";
       canManage = item.assignedToId === null || (item.assignedToId === activePerson.id && !item.assignedByAdmin && (!assigner || assigner.id === activePerson.id));
-      if (item.assignedToId === activePerson.id) symbol = "−";
     }
 
     if (!canManage) return "";
-    return `<button class="assignment-button" type="button" aria-label="${item.assignedToId ? "Change assignment" : "Assign task"}">${symbol}</button>`;
+
+    const label = assignee ? `Change assignment. Assigned to ${assignee.name}` : "Assign task";
+    const accentStyle = assignee ? ` style="--assignee-accent:${escapeHTML(assignee.accent)}"` : "";
+    const assignedClass = assignee ? " is-assigned" : "";
+    const personIcon = '<svg class="assignment-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.25"></circle><path d="M5.75 19c.45-3.45 2.55-5.25 6.25-5.25s5.8 1.8 6.25 5.25"></path></svg>';
+    return `<button class="assignment-button${assignedClass}" type="button" aria-label="${escapeHTML(label)}"${accentStyle}>${personIcon}</button>`;
   }
 
   function renderTaskRow(item, activePerson) {

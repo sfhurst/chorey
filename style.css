@@ -391,18 +391,37 @@ h1 {
   border: 1px solid var(--border-color);
   border-radius: 50%;
   background: transparent;
-  color: var(--text-main);
-  font: inherit;
-  font-size: 1.3rem;
-  line-height: 1;
+  color: var(--text-muted);
   cursor: pointer;
   display: grid;
   place-items: center;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 120ms ease;
   -webkit-tap-highlight-color: transparent;
+}
+
+.assignment-button.is-assigned {
+  color: var(--assignee-accent);
+  border-color: color-mix(in srgb, var(--assignee-accent) 65%, var(--border-color));
+  background: color-mix(in srgb, var(--assignee-accent) 10%, transparent);
+}
+
+.assignment-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .assignment-button:active {
   background: rgba(255, 255, 255, 0.08);
+  transform: scale(0.94);
+}
+
+.assignment-button.is-assigned:active {
+  background: color-mix(in srgb, var(--assignee-accent) 18%, transparent);
 }
 
 .owner-page-actions {
