@@ -126,3 +126,8 @@ Run the scheduler tests with:
 ```bash
 node tests/scheduler.test.js
 ```
+
+
+## Hidden developer menu
+
+Long-press the date for one second to open the local developer menu. A normal tap still returns to profile selection. The menu can reset local data, advance the scheduler by one day, one week, or one calendar month, and return to the real current date. The simulated date is stored locally and survives reloads until it is cleared. Reset Local Data removes all Chorey browser data and restores the hardcoded defaults.

@@ -1,10 +1,10 @@
 // ==========================================
-// CHOREY STORAGE SERVICE — SCHEMA VERSION 5
+// CHOREY STORAGE SERVICE — SCHEMA VERSION 6
 // ==========================================
 // This is the only file that may access localStorage. Chorey stores only
 // current-cycle state. Yesterday, last week, and last month are allowed to go.
 const ChoreyStorage = (() => {
-  const CURRENT_SCHEMA_VERSION = 5;
+  const CURRENT_SCHEMA_VERSION = 6;
   const ROOT_STORAGE_KEY = "chorey_app_state";
   const LEGACY_KEYS = {
     activePerson: ["chorey_active_person", "family_active_user"],
@@ -15,7 +15,7 @@ const ChoreyStorage = (() => {
   const clone = value => JSON.parse(JSON.stringify(value));
 
   function createDefaultState() {
-    return { schemaVersion: CURRENT_SCHEMA_VERSION, activePersonId: null, tasks: clone(defaultTasks), occurrenceStates: {}, daily: { dateKey: null, congratulationsShown: false }, legacyDailyTaskStates: {} };
+    return { schemaVersion: CURRENT_SCHEMA_VERSION, activePersonId: null, tasks: clone(defaultTasks), occurrenceStates: {}, daily: { dateKey: null, congratulationsShown: false }, developer: { dateOverride: null }, legacyDailyTaskStates: {} };
   }
   function readJson(key, fallbackValue) {
     try { const raw = localStorage.getItem(key); return raw === null ? clone(fallbackValue) : JSON.parse(raw); }
@@ -48,13 +48,14 @@ const ChoreyStorage = (() => {
   function normalizeTaskStates(states) { return (!states || typeof states !== "object" || Array.isArray(states)) ? {} : Object.fromEntries(Object.entries(states).map(([k,v])=>[k,normalizeTaskState(v)]).filter(([,v])=>v)); }
   function normalizeState(candidate) {
     const fallback = createDefaultState(); if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return fallback;
-    return { schemaVersion: CURRENT_SCHEMA_VERSION, activePersonId: findPersonId(candidate.activePersonId), tasks: Array.isArray(candidate.tasks) ? candidate.tasks.map(normalizeTask).filter(Boolean) : clone(defaultTasks).map(normalizeTask), occurrenceStates: normalizeTaskStates(candidate.occurrenceStates), daily: { dateKey: typeof candidate.daily?.dateKey === "string" ? candidate.daily.dateKey : null, congratulationsShown: Boolean(candidate.daily?.congratulationsShown) }, legacyDailyTaskStates: normalizeTaskStates(candidate.legacyDailyTaskStates) };
+    return { schemaVersion: CURRENT_SCHEMA_VERSION, activePersonId: findPersonId(candidate.activePersonId), tasks: Array.isArray(candidate.tasks) ? candidate.tasks.map(normalizeTask).filter(Boolean) : clone(defaultTasks).map(normalizeTask), occurrenceStates: normalizeTaskStates(candidate.occurrenceStates), daily: { dateKey: typeof candidate.daily?.dateKey === "string" ? candidate.daily.dateKey : null, congratulationsShown: Boolean(candidate.daily?.congratulationsShown) }, developer: { dateOverride: /^\d{4}-\d{2}-\d{2}$/.test(candidate.developer?.dateOverride || "") ? candidate.developer.dateOverride : null }, legacyDailyTaskStates: normalizeTaskStates(candidate.legacyDailyTaskStates) };
   }
   const migrations = {
     1: state => ({ schemaVersion: 2, activePersonId: state.activePersonId, tasks: clone(defaultTasks), occurrenceStates: {}, daily: { dateKey: state.daily?.dateKey || null, congratulationsShown: Boolean(state.daily?.congratulationsShown) }, legacyDailyTaskStates: state.daily?.taskStates || {} }),
     2: state => ({ ...state, schemaVersion: 3 }),
     3: state => ({ ...state, schemaVersion: 4 }),
     4: state => ({ ...state, schemaVersion: 5, tasks: Array.isArray(state.tasks) ? state.tasks.map(task => ({ ...task, defaultAssigneeId: task.defaultAssigneeId ?? null })) : clone(defaultTasks) }),
+    5: state => ({ ...state, schemaVersion: 6, developer: { dateOverride: null } }),
   };
   function migrateLegacyStorage() {
     const migrated = createDefaultState();
@@ -88,5 +89,17 @@ const ChoreyStorage = (() => {
     pruneOccurrenceStates(validIds) { const valid=new Set(validIds); let changed=false; Object.keys(state.occurrenceStates).forEach(id=>{ if(!valid.has(id)){ delete state.occurrenceStates[id]; changed=true; } }); if(changed) saveState(); return changed; },
     getLegacyDailyTaskStates: () => clone(state.legacyDailyTaskStates), clearLegacyDailyTaskStates() { state.legacyDailyTaskStates={}; return saveState(); },
     getCongratulationsShown: () => state.daily.congratulationsShown, setCongratulationsShown(value) { state.daily.congratulationsShown=Boolean(value); return saveState(); },
+    getDeveloperDateOverride: () => state.developer?.dateOverride || null,
+    setDeveloperDateOverride(value) {
+      state.developer = { dateOverride: /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? String(value) : null };
+      return saveState();
+    },
+    clearDeveloperDateOverride() { state.developer = { dateOverride: null }; return saveState(); },
+    resetAllData() {
+      localStorage.removeItem(ROOT_STORAGE_KEY);
+      Object.values(LEGACY_KEYS).flat().forEach(key => localStorage.removeItem(key));
+      state = createDefaultState();
+      return true;
+    },
   });
 })();

@@ -511,3 +511,69 @@ h1 {
 .swipe-action-button:active {
   background: #28547f;
 }
+
+
+/* Hidden developer menu: long-press the date heading. */
+.date-display {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.developer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(8px);
+}
+
+.developer-modal-card {
+  width: min(100%, 360px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--page-bg, #171717);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.developer-modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.developer-date-status {
+  margin-bottom: 18px;
+  color: var(--text-muted, #aaa);
+  font-size: 0.88rem;
+}
+
+.developer-menu-label {
+  margin: 18px 2px 8px;
+  color: var(--text-muted, #aaa);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.developer-menu-button {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 13px 14px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.developer-menu-button:disabled { opacity: 0.4; cursor: default; }
+.developer-menu-button.danger { border-color: #8d3030; color: #ef8d8d; }
+.developer-menu-button.cancel { margin-top: 18px; background: transparent; }

@@ -18,7 +18,7 @@ const ChoreyApp = (() => {
   async function initApp() {
     const activePerson = await getActivePerson();
     const tasks = await taskRepository.getAll();
-    activeDayData = ChoreyScheduler.buildDayData(tasks, activePerson);
+    activeDayData = ChoreyScheduler.buildDayData(tasks, activePerson, ChoreyClock.now());
 
     document.getElementById("date-subheading").textContent = activeDayData.displayDate;
     await dailyRepository.prepare(activeDayData.dateKey);
@@ -289,7 +289,72 @@ const ChoreyApp = (() => {
     ChoreyUI.showCongratulations();
   }
 
-  document.getElementById("date-subheading").addEventListener("click", async () => {
+  const dateSubheading = document.getElementById("date-subheading");
+  const LONG_PRESS_MS = 1000;
+  let dateHoldTimer = null;
+  let dateLongPressTriggered = false;
+
+  function clearDateHold() {
+    if (dateHoldTimer !== null) window.clearTimeout(dateHoldTimer);
+    dateHoldTimer = null;
+  }
+
+  function openDeveloperMenu() {
+    document.querySelector(".developer-overlay")?.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "developer-overlay";
+    const simulated = ChoreyClock.now().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    overlay.innerHTML = `
+      <div class="developer-modal-card" role="dialog" aria-modal="true" aria-label="Developer menu">
+        <div class="developer-modal-title">Developer</div>
+        <div class="developer-date-status">Scheduler date: ${escapeHTML(simulated)}</div>
+        <button class="developer-menu-button danger" data-dev-action="reset">Reset Local Data</button>
+        <div class="developer-menu-label">Time Travel</div>
+        <button class="developer-menu-button" data-dev-action="tomorrow">Tomorrow</button>
+        <button class="developer-menu-button" data-dev-action="week">Next Week</button>
+        <button class="developer-menu-button" data-dev-action="month">Next Month</button>
+        <button class="developer-menu-button" data-dev-action="today" ${ChoreyClock.isOverridden() ? "" : "disabled"}>Return to Today</button>
+        <button class="developer-menu-button cancel" data-dev-action="cancel">Cancel</button>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", async event => {
+      const action = event.target.closest("[data-dev-action]")?.dataset.devAction;
+      if (!action) { if (event.target === overlay) overlay.remove(); return; }
+      if (action === "cancel") { overlay.remove(); return; }
+      if (action === "reset") {
+        if (!confirm("Reset all local Chorey data and restore the hardcoded defaults?")) return;
+        ChoreyStorage.resetAllData();
+        location.reload();
+        return;
+      }
+      if (action === "tomorrow") ChoreyClock.advanceDays(1);
+      if (action === "week") ChoreyClock.advanceDays(7);
+      if (action === "month") ChoreyClock.advanceMonth();
+      if (action === "today") ChoreyClock.returnToToday();
+      overlay.remove();
+      currentView = "today";
+      await initApp();
+    });
+  }
+
+  dateSubheading.addEventListener("pointerdown", event => {
+    if (event.button !== undefined && event.button !== 0) return;
+    dateLongPressTriggered = false;
+    clearDateHold();
+    dateHoldTimer = window.setTimeout(() => {
+      dateLongPressTriggered = true;
+      openDeveloperMenu();
+      navigator.vibrate?.(30);
+    }, LONG_PRESS_MS);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(type => dateSubheading.addEventListener(type, clearDateHold));
+  dateSubheading.addEventListener("click", async event => {
+    if (dateLongPressTriggered) {
+      event.preventDefault();
+      dateLongPressTriggered = false;
+      return;
+    }
     currentView = "today";
     await profileRepository.clearActivePerson();
     await initApp();
@@ -302,7 +367,7 @@ const ChoreyApp = (() => {
     if (document.hidden) { hiddenAt = Date.now(); return; }
     const inactiveLongEnough = hiddenAt !== null && Date.now() - hiddenAt >= INACTIVITY_REFRESH_MS;
     hiddenAt = null;
-    if (inactiveLongEnough && activeDayData?.dateKey !== ChoreyUtils.dateKey(new Date())) await initApp();
+    if (inactiveLongEnough && activeDayData?.dateKey !== ChoreyUtils.dateKey(ChoreyClock.now())) await initApp();
   });
 
   return Object.freeze({ init: initApp });

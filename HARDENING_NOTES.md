@@ -26,3 +26,14 @@
 ## Reset behavior
 
 Clearing the browser's site data remains a true factory reset. It removes custom tasks, local edits, completion state, and assignments. The hardcoded defaults seed the next launch.
+
+
+## Developer clock and reset menu
+
+- Long-pressing the date for one second opens a hidden developer menu.
+- Normal date taps still return to profile selection.
+- Time travel uses a centralized `ChoreyClock` and never changes the device clock.
+- Tomorrow and Next Week advance from the currently simulated date.
+- Next Month advances one calendar month and clamps dates such as January 31 to the last valid day of February.
+- Return to Today removes the override.
+- Reset Local Data removes the root and legacy Chorey storage keys, then reloads the hardcoded defaults.
