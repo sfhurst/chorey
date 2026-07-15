@@ -60,7 +60,7 @@ const ChoreyTaskCreator = (() => {
         if (!categories.has(key)) categories.set(key, category);
       };
 
-      Object.values(legacyChoreSchedule.days).flat().forEach(label => addCategory(splitTaskLabel(label).category));
+      defaultTasks.forEach(task => addCategory(task.category));
       (await taskRepository.getAll())
         .filter(task => task.active !== false)
         .forEach(task => addCategory(task.category));
