@@ -14,16 +14,16 @@ const ChoreyTaskCreator = (() => {
       category: existingTask.category,
       type: existingTask.schedule.type,
       days: [...(existingTask.schedule.days || [])],
-      weekend: existingTask.schedule.weekend ?? null,
+      week: existingTask.schedule.week ?? null,
       months: [...(existingTask.schedule.months || [])],
       date: existingTask.schedule.date || null,
-      seasonal: ["days", "weekends"].includes(existingTask.schedule.type) && Boolean(existingTask.schedule.months?.length),
+      seasonal: ["days", "weeks"].includes(existingTask.schedule.type) && Boolean(existingTask.schedule.months?.length),
     } : {
       name: "",
       category: "General",
       type: null,
       days: [],
-      weekend: null,
+      week: null,
       months: [],
       date: null,
       seasonal: false,
@@ -93,7 +93,7 @@ const ChoreyTaskCreator = (() => {
     }
 
     function chooseType() {
-      const choices = [["once", "Once"], ["days", "Days"], ["weekends", "Weekends"], ["months", "Months"]];
+      const choices = [["once", "Once"], ["days", "Days"], ["weeks", "Weeks"], ["months", "Months"]];
       show(`<div class="assignment-modal-title">How often?</div><ul class="chore-list">${choices.map(([value, label]) => `<li class="chore-item selector-row${selectedClass(draft.type === value)}" data-type="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
       bindDelete();
@@ -101,7 +101,7 @@ const ChoreyTaskCreator = (() => {
         draft.type = row.dataset.type;
         if (draft.type === "once") chooseDate();
         else if (draft.type === "days") chooseDays();
-        else if (draft.type === "weekends") chooseWeekend();
+        else if (draft.type === "weeks") chooseWeek();
         else chooseMonths(false);
       }));
     }
@@ -123,7 +123,7 @@ const ChoreyTaskCreator = (() => {
       overlay.querySelectorAll("[data-date]").forEach(row => row.addEventListener("click", () => {
         draft.date = row.dataset.date;
         draft.days = [];
-        draft.weekend = null;
+        draft.week = null;
         draft.months = [];
         saveTask();
       }));
@@ -138,7 +138,7 @@ const ChoreyTaskCreator = (() => {
           .filter(input => input.id !== "seasonal")
           .map(input => Number(input.value));
         draft.seasonal = overlay.querySelector("#seasonal").checked;
-        draft.weekend = null;
+        draft.week = null;
         draft.date = null;
         if (!draft.days.length) return alert("Choose at least one day.");
         if (!draft.seasonal) draft.months = [];
@@ -146,13 +146,13 @@ const ChoreyTaskCreator = (() => {
       });
     }
 
-    function chooseWeekend() {
-      const options = [[1, "First weekend"], [2, "Second weekend"], [3, "Third weekend"], [4, "Fourth weekend"], [5, "Fifth weekend"], ["last", "Last weekend"]];
-      show(`<div class="assignment-modal-title">Choose a weekend</div><ul class="chore-list">${options.map(([value, label]) => `<li class="chore-item selector-row${selectedClass(String(draft.weekend) === String(value))}" data-weekend="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul><label class="selector-check seasonal-check${selectedClass(draft.seasonal)}"><input type="checkbox" id="seasonal" ${draft.seasonal ? "checked" : ""}><span>Seasonal</span></label>${cancelButton()}${editing ? deleteControl() : ""}`);
+    function chooseWeek() {
+      const options = [[1, "First week"], [2, "Second week"], [3, "Third week"], [4, "Fourth week"], [5, "Fifth week"], ["last", "Last week"]];
+      show(`<div class="assignment-modal-title">Choose a week</div><ul class="chore-list">${options.map(([value, label]) => `<li class="chore-item selector-row${selectedClass(String(draft.week) === String(value))}" data-week="${value}"><span class="chore-title">${label}</span></li>`).join("")}</ul><label class="selector-check seasonal-check${selectedClass(draft.seasonal)}"><input type="checkbox" id="seasonal" ${draft.seasonal ? "checked" : ""}><span>Seasonal</span></label>${cancelButton()}${editing ? deleteControl() : ""}`);
       bindCancel();
       bindDelete();
-      overlay.querySelectorAll("[data-weekend]").forEach(row => row.addEventListener("click", () => {
-        draft.weekend = row.dataset.weekend === "last" ? "last" : Number(row.dataset.weekend);
+      overlay.querySelectorAll("[data-week]").forEach(row => row.addEventListener("click", () => {
+        draft.week = row.dataset.week === "last" ? "last" : Number(row.dataset.week);
         draft.seasonal = overlay.querySelector("#seasonal").checked;
         draft.days = [];
         draft.date = null;
@@ -170,7 +170,7 @@ const ChoreyTaskCreator = (() => {
         if (!draft.months.length) return alert("Choose at least one month.");
         if (!isSeasonal) {
           draft.days = [];
-          draft.weekend = null;
+          draft.week = null;
           draft.date = null;
         }
         saveTask();
@@ -219,9 +219,10 @@ const ChoreyTaskCreator = (() => {
           type: draft.type,
           date: draft.type === "once" ? draft.date : null,
           days: draft.type === "days" ? draft.days : [],
-          weekend: draft.type === "weekends" ? draft.weekend : null,
+          week: draft.type === "weeks" ? draft.week : null,
           months: ["months"].includes(draft.type) || draft.seasonal ? draft.months : [],
         },
+        defaultAssigneeId: original?.defaultAssigneeId || null,
         visibility: original?.visibility || { type: "household", visibleToIds: [] },
         createdById: original?.createdById || owner.id,
         createdAt: original?.createdAt || new Date().toISOString(),

@@ -1,17 +1,25 @@
+/*
+ * Chorey exists to reduce mental load, not create pressure.
+ *
+ * The scheduler is the heart of the app. It decides whether a task appears,
+ * how long the occurrence remains available, and when that window closes.
+ * Keep scheduling rules here so the interface can stay calm and simple.
+ */
 const ChoreyScheduler = (() => {
   const { dateKey } = ChoreyUtils;
 
-  function getWeekendInfo(date) {
-    if (![0, 6].includes(date.getDay())) return null;
-    const saturday = new Date(date);
-    if (date.getDay() === 0) saturday.setDate(date.getDate() - 1);
-    const sunday = new Date(saturday);
-    sunday.setDate(saturday.getDate() + 1);
-    const weekendNumber = Math.floor((saturday.getDate() - 1) / 7) + 1;
+  function getWeekInfo(date) {
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const weekNumber = Math.floor((saturday.getDate() - 1) / 7) + 1;
     const nextSaturday = new Date(saturday);
     nextSaturday.setDate(saturday.getDate() + 7);
     const isLast = nextSaturday.getMonth() !== saturday.getMonth();
-    return { saturday, sunday, weekendNumber, isLast };
+    return { monday, saturday, sunday, weekNumber, isLast };
   }
 
   function isVisibleTo(task, person) {
@@ -21,34 +29,43 @@ const ChoreyScheduler = (() => {
 
   function getOccurrence(task, date) {
     if (!task.active) return null;
-    const month = date.getMonth() + 1;
     const schedule = task.schedule;
-    if (["days", "weekends"].includes(schedule.type) && schedule.months.length && !schedule.months.includes(month)) return null;
 
     if (schedule.type === "once") {
       if (schedule.date !== dateKey(date)) return null;
-      return { key: `${task.id}@${schedule.date}`, group: "once", opensOn: schedule.date, closesOn: schedule.date };
+      return { key: `${task.id}@${schedule.date}`, recurrence: "once", duration: "day", opensOn: schedule.date, closesOn: schedule.date };
     }
 
     if (schedule.type === "days") {
+      const month = date.getMonth() + 1;
+      if (schedule.months.length && !schedule.months.includes(month)) return null;
       if (!schedule.days.includes(date.getDay())) return null;
       const key = dateKey(date);
-      return { key: `${task.id}@${key}`, group: "days", opensOn: key, closesOn: key };
+      return { key: `${task.id}@${key}`, recurrence: "days", duration: "day", opensOn: key, closesOn: key };
     }
 
-    if (schedule.type === "weekends") {
-      const info = getWeekendInfo(date);
-      if (!info) return null;
-      const matches = schedule.weekend === "last" ? info.isLast : schedule.weekend === info.weekendNumber;
+    if (schedule.type === "weeks") {
+      const info = getWeekInfo(date);
+      const anchorMonth = info.saturday.getMonth() + 1;
+      if (schedule.months.length && !schedule.months.includes(anchorMonth)) return null;
+      const matches = schedule.week === "last" ? info.isLast : schedule.week === info.weekNumber;
       if (!matches) return null;
-      return { key: `${task.id}@${dateKey(info.saturday)}`, group: "weekends", opensOn: dateKey(info.saturday), closesOn: dateKey(info.sunday) };
+      return {
+        key: `${task.id}@${dateKey(info.saturday)}`,
+        recurrence: "weeks",
+        duration: "week",
+        opensOn: dateKey(info.monday),
+        closesOn: dateKey(info.sunday),
+        anchorOn: dateKey(info.saturday),
+      };
     }
 
     if (schedule.type === "months") {
+      const month = date.getMonth() + 1;
       if (!schedule.months.includes(month)) return null;
       const monthKey = `${date.getFullYear()}-${String(month).padStart(2, "0")}`;
       const lastDay = new Date(date.getFullYear(), month, 0);
-      return { key: `${task.id}@${monthKey}`, group: "months", opensOn: `${monthKey}-01`, closesOn: dateKey(lastDay) };
+      return { key: `${task.id}@${monthKey}`, recurrence: "months", duration: "month", opensOn: `${monthKey}-01`, closesOn: dateKey(lastDay) };
     }
 
     return null;
@@ -56,9 +73,9 @@ const ChoreyScheduler = (() => {
 
   function legacyStateId(task, occurrence) {
     const raw = `${task.category}: ${task.name}`;
-    if (occurrence.group === "days") return `Chore_${raw.replace(/\s+/g, "_")}`;
-    if (occurrence.group === "weekends") return `Monthly_${task.name.replace(/\s+/g, "_")}`;
-    if (occurrence.group === "months") return `Yearly_${task.name.replace(/\s+/g, "_")}`;
+    if (occurrence.duration === "day" && occurrence.recurrence === "days") return `Chore_${raw.replace(/\s+/g, "_")}`;
+    if (occurrence.duration === "week") return `Monthly_${task.name.replace(/\s+/g, "_")}`;
+    if (occurrence.duration === "month") return `Yearly_${task.name.replace(/\s+/g, "_")}`;
     return null;
   }
 

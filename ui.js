@@ -1,5 +1,24 @@
+/*
+ * Chorey's interface should help without hurting. Show what matters now,
+ * keep longer work visible without making it feel urgent, and avoid adding
+ * guilt, clutter, or extra decisions.
+ */
 const ChoreyUI = (() => {
-  const { monthsOfYear, getPerson, escapeHTML } = ChoreyUtils;
+  const { getPerson, escapeHTML } = ChoreyUtils;
+
+  const CATEGORY_COLORS = Object.freeze([
+    "#3a9ad9", "#8a63d2", "#2bbbb0", "#66cdaa", "#e67e22",
+    "#d4af37", "#cc6677", "#6f9f4f", "#5b8fd1", "#b07cc6",
+    "#3aa6a0", "#79b88a", "#d99058", "#c4a24d", "#b85f6f",
+    "#7894c8", "#9278bd", "#4f9b94", "#78a96c", "#c98252",
+  ]);
+
+  function categoryColor(category) {
+    const normalized = String(category || "General").trim().toLocaleLowerCase();
+    let hash = 0;
+    for (const character of normalized) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+    return CATEGORY_COLORS[Math.abs(hash) % CATEGORY_COLORS.length];
+  }
 
   function updateHeader(person, onAddTask, options = {}) {
     const heading = document.getElementById("day-heading");
@@ -38,28 +57,46 @@ const ChoreyUI = (() => {
   }
 
   function renderTaskRow(item, activePerson) {
-    const slug = item.task.category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const canEdit = Boolean(activePerson?.isOwner);
-    const taskCard = `<div class="chore-item ${item.isDone ? "completed-row" : ""}" data-id="${escapeHTML(item.id)}" data-cat="${escapeHTML(slug)}"><input type="checkbox" class="chore-checkbox" ${item.isDone ? "checked" : ""} tabindex="-1"><div class="chore-text-target"><span class="chore-title">${escapeHTML(item.displayTask)}</span></div>${assignmentControl(item, activePerson)}</div>`;
+    const accent = categoryColor(item.task.category);
+    const taskCard = `<div class="chore-item ${item.isDone ? "completed-row" : ""}" data-id="${escapeHTML(item.id)}" style="--category-accent:${accent}"><input type="checkbox" class="chore-checkbox" ${item.isDone ? "checked" : ""} tabindex="-1"><div class="chore-text-target"><span class="chore-title">${escapeHTML(item.displayTask)}</span></div>${assignmentControl(item, activePerson)}</div>`;
     if (!canEdit) return `<li class="swipe-row">${taskCard}</li>`;
     return `<li class="swipe-row can-edit" data-task-id="${escapeHTML(item.task.id)}"><button class="swipe-action-button" type="button" aria-label="Edit ${escapeHTML(item.displayTask)}">Edit</button>${taskCard}</li>`;
   }
 
-  function renderSection(sectionId, items, activePerson, activeDayData) {
+  function compareByCategory(a, b) {
+    return a.task.category.localeCompare(b.task.category, undefined, { sensitivity: "base" })
+      || Number(a.isDone) - Number(b.isDone)
+      || a.originalIndex - b.originalIndex;
+  }
+
+  function daysRemaining(currentDateKey, closesOn) {
+    const current = new Date(`${currentDateKey}T12:00:00`);
+    const closes = new Date(`${closesOn}T12:00:00`);
+    return Math.max(0, Math.round((closes - current) / 86400000));
+  }
+
+  function dueLabel(currentDateKey, closesOn) {
+    const remaining = daysRemaining(currentDateKey, closesOn);
+    if (remaining === 0) return "Due: Today";
+    if (remaining === 1) return "Due: Tomorrow";
+    return `Due: ${remaining} days`;
+  }
+
+  function renderSection(sectionId, items, activePerson, currentDateKey) {
     const person = getPerson(sectionId);
     const title = person ? `${person.name}'s Contributions` : "Unassigned Tasks";
-    const sortItems = group => items
-      .filter(item => item.occurrence.group === group)
-      .sort((a, b) => Number(a.isDone) - Number(b.isDone) || a.originalIndex - b.originalIndex);
-
-    const ordinaryItems = [...sortItems("once"), ...sortItems("days")];
-    const weekendItems = sortItems("weekends");
-    const monthItems = sortItems("months");
-    const monthName = monthsOfYear[Number(activeDayData.dateKey.slice(5, 7)) - 1];
+    const durationItems = duration => items.filter(item => item.occurrence.duration === duration).sort(compareByCategory);
+    const dayItems = durationItems("day");
+    const weekItems = durationItems("week");
+    const monthItems = durationItems("month");
+    const group = (label, due, groupItems) => groupItems.length ? `${label ? `<li class="task-group-label"><span>${label}</span><span class="task-group-due">${due}</span></li>` : ""}${groupItems.map(item => renderTaskRow(item, activePerson)).join("")}` : "";
+    const weekDue = weekItems.length ? dueLabel(currentDateKey, weekItems[0].occurrence.closesOn) : "";
+    const monthDue = monthItems.length ? dueLabel(currentDateKey, monthItems[0].occurrence.closesOn) : "";
     const content = [
-      ordinaryItems.map(item => renderTaskRow(item, activePerson)).join(""),
-      weekendItems.length ? `<li class="task-group-label">Weekend</li>${weekendItems.map(item => renderTaskRow(item, activePerson)).join("")}` : "",
-      monthItems.length ? `<li class="task-group-label">${escapeHTML(monthName)}</li>${monthItems.map(item => renderTaskRow(item, activePerson)).join("")}` : "",
+      group("", "", dayItems),
+      group("This Week", weekDue, weekItems),
+      group("This Month", monthDue, monthItems),
     ].join("") || '<li class="empty-state compact-empty">No tasks here.</li>';
 
     return `<div class="section-header ${person ? "person-section" : ""}" ${person ? `style="--person-accent:${escapeHTML(person.accent)}"` : ""}><span>${escapeHTML(title)}</span><span class="section-count">${items.length} ${items.length === 1 ? "item" : "items"}</span></div><ul class="chore-list">${content}</ul>`;
@@ -67,22 +104,22 @@ const ChoreyUI = (() => {
 
   function renderBoard(activePerson, activeDayData, sections) {
     const order = ["unassigned", activePerson.id, ...people.filter(person => person.id !== activePerson.id).map(person => person.id)];
-    const board = order.map(id => renderSection(id, sections.get(id) || [], activePerson, activeDayData)).join("");
+    const board = order.map(id => renderSection(id, sections.get(id) || [], activePerson, activeDayData.dateKey)).join("");
     return activePerson.isOwner ? `${board}<div class="owner-page-actions"><button class="secondary-button" id="view-all-tasks">View All Tasks</button></div>` : board;
   }
 
   function taskGroup(task) {
-    if (task.schedule.type === "months" || (["days", "weekends"].includes(task.schedule.type) && task.schedule.months?.length)) return "yearly";
-    if (task.schedule.type === "weekends") return "monthly";
+    if (task.schedule.type === "months" || (["days", "weeks"].includes(task.schedule.type) && task.schedule.months?.length)) return "yearly";
+    if (task.schedule.type === "weeks") return "monthly";
     return "daily";
   }
 
   function renderAllTasks(tasks) {
     const groups = { daily: [], monthly: [], yearly: [] };
-    tasks.filter(task => task.active !== false).forEach(task => groups[taskGroup(task)].push(task));
-    Object.values(groups).forEach(group => group.sort((a, b) => `${a.category}: ${a.name}`.localeCompare(`${b.category}: ${b.name}`, undefined, { sensitivity: "base" })));
+    tasks.filter(task => task.active !== false).forEach((task, index) => groups[taskGroup(task)].push({ task, index }));
+    Object.values(groups).forEach(group => group.sort((a, b) => a.task.category.localeCompare(b.task.category, undefined, { sensitivity: "base" }) || a.index - b.index));
 
-    const section = (key, title) => `<div class="section-header"><span>${title}</span><span class="section-count">${groups[key].length} ${groups[key].length === 1 ? "item" : "items"}</span></div><ul class="chore-list all-task-list">${groups[key].length ? groups[key].map(task => `<li class="swipe-row can-edit" data-task-id="${escapeHTML(task.id)}"><button class="swipe-action-button" type="button" aria-label="Edit ${escapeHTML(task.name)}">Edit</button><div class="chore-item all-task-row"><div class="chore-text-target"><span class="chore-title">${escapeHTML(task.category)}: ${escapeHTML(task.name)}</span></div></div></li>`).join("") : '<li class="empty-state compact-empty">No tasks here.</li>'}</ul>`;
+    const section = (key, title) => `<div class="section-header"><span>${title}</span><span class="section-count">${groups[key].length} ${groups[key].length === 1 ? "item" : "items"}</span></div><ul class="chore-list all-task-list">${groups[key].length ? groups[key].map(({ task }) => `<li class="swipe-row can-edit" data-task-id="${escapeHTML(task.id)}"><button class="swipe-action-button" type="button" aria-label="Edit ${escapeHTML(task.name)}">Edit</button><div class="chore-item all-task-row" style="--category-accent:${categoryColor(task.category)}"><div class="chore-text-target"><span class="chore-title">${escapeHTML(task.category)}: ${escapeHTML(task.name)}</span></div></div></li>`).join("") : '<li class="empty-state compact-empty">No tasks here.</li>'}</ul>`;
     return `${section("daily", "Daily")}${section("monthly", "Monthly")}${section("yearly", "Yearly")}<div class="owner-page-actions"><button class="secondary-button" id="back-to-today">Back to Today</button></div>`;
   }
 
@@ -93,7 +130,7 @@ const ChoreyUI = (() => {
   function showCongratulations() {
     const overlay = document.createElement("div");
     overlay.className = "congrats-overlay";
-    overlay.innerHTML = "<h2>All Tasks Done</h2><p>Everything is checked off. Enjoy your day.</p>";
+    overlay.innerHTML = "<h2>Today's Tasks Done</h2><p>Everything due today is checked off. Enjoy your day.</p>";
     document.body.appendChild(overlay);
     setTimeout(() => {
       overlay.classList.add("fade-out");

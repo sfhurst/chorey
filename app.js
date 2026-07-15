@@ -1,3 +1,8 @@
+/*
+ * Chorey starts with today and lets yesterday go. The application layer
+ * coordinates the scheduler, storage, and interface without turning missed
+ * chores into debt, warnings, or guilt.
+ */
 const ChoreyApp = (() => {
   const { getPerson, escapeHTML } = ChoreyUtils;
   const { profileRepository, taskRepository, occurrenceRepository, dailyRepository } = ChoreyRepositories;
@@ -66,7 +71,7 @@ const ChoreyApp = (() => {
       }
     });
     if (changed) {
-      await occurrenceRepository.saveAll(states);
+      for (const [id, state] of Object.entries(states)) await occurrenceRepository.set(id, state);
       await occurrenceRepository.clearLegacyDailyStates();
     }
     return states;
@@ -77,6 +82,8 @@ const ChoreyApp = (() => {
     const activePerson = await getActivePerson();
     if (!activePerson) return renderLoginScreen();
     document.getElementById("date-subheading").textContent = activeDayData.displayDate;
+
+    await occurrenceRepository.prune(activeDayData.occurrences.map(item => item.id));
 
     if (!activeDayData.occurrences.length) {
       ChoreyUI.renderEmptyDay(activePerson);
@@ -89,7 +96,7 @@ const ChoreyApp = (() => {
 
     activeDayData.occurrences.forEach(item => {
       const state = states[item.id] || {
-        assignedToId: null,
+        assignedToId: item.task.defaultAssigneeId || null,
         isDone: false,
         completedById: null,
         assignedByAdmin: false,
@@ -101,8 +108,11 @@ const ChoreyApp = (() => {
       sections.get(sectionId).push(configured);
     });
 
-    const completed = activeDayData.occurrences.filter(item => states[item.id]?.isDone).length;
-    if (completed === activeDayData.occurrences.length && !congratsTriggeredForToday) await triggerTemporaryCongrats();
+    const dueToday = activeDayData.occurrences.filter(item =>
+      item.occurrence.duration === "day" || item.occurrence.closesOn === activeDayData.dateKey
+    );
+    const allDueTodayComplete = dueToday.length > 0 && dueToday.every(item => states[item.id]?.isDone);
+    if (allDueTodayComplete && !congratsTriggeredForToday) await triggerTemporaryCongrats();
 
     ChoreySwipe.resetOpenRow();
     viewport.innerHTML = ChoreyUI.renderBoard(activePerson, activeDayData, sections);
@@ -161,7 +171,8 @@ const ChoreyApp = (() => {
   async function handleAssignmentControl(id) {
     const active = await getActivePerson();
     const states = await occurrenceRepository.getAll();
-    const current = states[id] || { assignedToId: null, isDone: false, assignedByAdmin: false, assignedById: null, assignedByCompletion: false };
+    const task = activeDayData.occurrences.find(item => item.id === id)?.task;
+    const current = states[id] || { assignedToId: task?.defaultAssigneeId || null, isDone: false, assignedByAdmin: false, assignedById: null, assignedByCompletion: false };
     if (current.isDone) return;
 
     if (active.isOwner) return openAssignmentModal(id, active);
@@ -183,7 +194,8 @@ const ChoreyApp = (() => {
       return;
     }
 
-    await occurrenceRepository.saveAll(states);
+    if (states[id]) await occurrenceRepository.set(id, states[id]);
+    else await occurrenceRepository.delete(id);
     await renderView();
   }
 
@@ -211,7 +223,8 @@ const ChoreyApp = (() => {
       } else {
         delete states[id];
       }
-      await occurrenceRepository.saveAll(states);
+      if (states[id]) await occurrenceRepository.set(id, states[id]);
+      else await occurrenceRepository.delete(id);
       overlay.remove();
       await renderView();
     }));
@@ -221,8 +234,9 @@ const ChoreyApp = (() => {
   async function toggleCompletion(id, checked) {
     const active = await getActivePerson();
     const states = await occurrenceRepository.getAll();
+    const task = activeDayData.occurrences.find(item => item.id === id)?.task;
     const current = states[id] || {
-      assignedToId: null,
+      assignedToId: task?.defaultAssigneeId || null,
       isDone: false,
       completedById: null,
       assignedByAdmin: false,
@@ -263,7 +277,8 @@ const ChoreyApp = (() => {
       congratsTriggeredForToday = false;
       await dailyRepository.setCongratulationsShown(false);
     }
-    await occurrenceRepository.saveAll(states);
+    if (states[id]) await occurrenceRepository.set(id, states[id]);
+    else await occurrenceRepository.delete(id);
     await renderView();
     return true;
   }
@@ -278,6 +293,16 @@ const ChoreyApp = (() => {
     currentView = "today";
     await profileRepository.clearActivePerson();
     await initApp();
+  });
+
+
+  const INACTIVITY_REFRESH_MS = 15 * 60 * 1000;
+  let hiddenAt = null;
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    const inactiveLongEnough = hiddenAt !== null && Date.now() - hiddenAt >= INACTIVITY_REFRESH_MS;
+    hiddenAt = null;
+    if (inactiveLongEnough && activeDayData?.dateKey !== ChoreyUtils.dateKey(new Date())) await initApp();
   });
 
   return Object.freeze({ init: initApp });
